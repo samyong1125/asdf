@@ -89,6 +89,21 @@ static_resources:
                   envoy.filters.http.ext_authz:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                     disabled: true
+              # User 서비스 라우팅 (인증 필요)
+              - match:
+                  prefix: "/api/v1/users"
+                route:
+                  cluster: user_service
+                response_headers_to_add:
+                - header:
+                    key: "Access-Control-Allow-Origin"
+                    value: "*"
+                - header:
+                    key: "Access-Control-Allow-Methods"
+                    value: "GET, POST, PUT, DELETE, OPTIONS"
+                - header:
+                    key: "Access-Control-Allow-Headers"
+                    value: "authorization, content-type, x-grpc-web, x-user-agent"
               # 기본 응답
               - match:
                   prefix: "/"
@@ -113,3 +128,19 @@ static_resources:
               socket_address:
                 address: auth-server
                 port_value: 15001
+
+  # User 서비스 클러스터
+  - name: user_service
+    connect_timeout: 2s
+    type: LOGICAL_DNS
+    dns_lookup_family: V4_ONLY
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: user_service
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: user
+                port_value: 15002

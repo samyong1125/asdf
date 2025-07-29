@@ -56,6 +56,25 @@ services:
     networks:
       - asdf
 
+  user-server:
+    build:
+      context: ./back/services/user
+      dockerfile: Dockerfile
+    container_name: user
+    ports:
+      - "15002:15002"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=50001
+      - DB_USER=asdf
+      - DB_PASSWORD=asdf
+      - DB_NAME=userdb
+      - PORT=15002
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - asdf
 
   gateway:
     build:
@@ -67,6 +86,7 @@ services:
       - "9901:9901"    # Envoy admin port
     depends_on:
       - auth-server
+      - user-server
     networks:
       - asdf
 
