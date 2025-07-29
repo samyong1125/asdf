@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: auth-postgres
+    environment:
+      POSTGRES_DB: authdb
+      POSTGRES_USER: asdf
+      POSTGRES_PASSWORD: asdf
+      PGPORT: 50001
+    ports:
+      - "50001:50001"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asdf -d authdb -p 50001"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - asdf
+
+  redis:
+    image: redis:7-alpine
+    container_name: auth-redis
+    command: redis-server --port 50002
+    ports:
+      - "50002:50002"
+    volumes:
+      - redis_data:/data
+    networks:
+      - asdf
+
+  auth-server:
+    build:
+      context: ./back/auth
+      dockerfile: Dockerfile
+    container_name: auth-server
+    ports:
+      - "15001:15001"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=50001
+      - DB_USER=asdf
+      - DB_PASSWORD=asdf
+      - DB_NAME=authdb
+      - REDIS_HOST=redis
+      - REDIS_PORT=50002
+      - JWT_SECRET=your-secret-key-here
+      - PORT=15001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - asdf
+
+
+  gateway:
+    build:
+      context: ./back/gateway
+      dockerfile: Dockerfile
+    container_name: envoy-gateway
+    ports:
+      - "15000:15000"  # API Gateway port
+      - "9901:9901"    # Envoy admin port
+    depends_on:
+      - auth-server
+    networks:
+      - asdf
+
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  asdf:
+    driver: bridge
