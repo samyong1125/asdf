@@ -1,9 +1,9 @@
 services:
   postgres:
     image: postgres:15
-    container_name: auth-postgres
+    container_name: user-postgres
     environment:
-      POSTGRES_DB: authdb
+      POSTGRES_DB: userdb
       POSTGRES_USER: asdf
       POSTGRES_PASSWORD: asdf
       PGPORT: 50001
@@ -13,7 +13,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U asdf -d authdb -p 50001"]
+      test: ["CMD-SHELL", "pg_isready -U asdf -d userdb -p 50001"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -22,7 +22,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: auth-redis
+    container_name: user-redis
     command: redis-server --port 50002
     ports:
       - "50002:50002"
@@ -43,7 +43,7 @@ services:
       - DB_PORT=50001
       - DB_USER=asdf
       - DB_PASSWORD=asdf
-      - DB_NAME=authdb
+      - DB_NAME=userdb
       - REDIS_HOST=redis
       - REDIS_PORT=50002
       - JWT_SECRET=your-secret-key-here
