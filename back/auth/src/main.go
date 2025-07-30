@@ -45,7 +45,15 @@ func main() {
 		api.POST("/refresh", handlers.Refresh)
 		api.POST("/logout", handlers.Logout)
 		api.GET("/verify", handlers.Verify) // Envoy가 호출
+		api.POST("/verify", handlers.Verify) // POST 요청 지원
+		api.PUT("/verify", handlers.Verify) // PUT 요청 지원
+		api.DELETE("/verify", handlers.Verify) // DELETE 요청 지원
+		api.PATCH("/verify", handlers.Verify) // PATCH 요청 지원
 		api.GET("/verify/*path", handlers.Verify) // Envoy가 path_prefix로 호출하는 경우
+		api.POST("/verify/*path", handlers.Verify) // POST path_prefix 지원
+		api.PUT("/verify/*path", handlers.Verify) // PUT path_prefix 지원
+		api.DELETE("/verify/*path", handlers.Verify) // DELETE path_prefix 지원
+		api.PATCH("/verify/*path", handlers.Verify) // PATCH path_prefix 지원
 	}
 
 	// 헬스체크 엔드포인트

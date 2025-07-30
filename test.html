@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASDF 프로젝트 전체 API 테스트</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .section h2 { margin-top: 0; }
+        input, textarea, button { margin: 5px; padding: 8px; }
+        button { background: #007cba; color: white; border: none; cursor: pointer; }
+        button:hover { background: #005a87; }
+        .response { background: #f5f5f5; padding: 10px; margin: 10px 0; min-height: 50px; }
+        .token-info { font-size: 12px; color: #666; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>ASDF 프로젝트 전체 API 테스트 페이지</h1>
+    
+    <!-- 토큰 상태 표시 -->
+    <div class="section">
+        <h2>🔑 JWT 토큰 상태</h2>
+        <div id="tokenStatus">로그인되지 않음</div>
+        <div class="token-info" id="tokenInfo"></div>
+        <button onclick="clearToken()">토큰 삭제</button>
+    </div>
+
+    <!-- Auth API 테스트 -->
+    <div class="section">
+        <h2>🔐 Auth Service API (포트 15001)</h2>
+        
+        <h3>사용자 등록</h3>
+        <input type="email" id="registerEmail" placeholder="이메일" value="test@example.com">
+        <input type="password" id="registerPassword" placeholder="비밀번호" value="testpassword123">
+        <button onclick="register()">등록</button>
+        <div class="response" id="registerResponse"></div>
+
+        <h3>사용자 로그인</h3>
+        <input type="email" id="loginEmail" placeholder="이메일" value="test@example.com">
+        <input type="password" id="loginPassword" placeholder="비밀번호" value="testpassword123">
+        <button onclick="login()">로그인</button>
+        <div class="response" id="loginResponse"></div>
+
+        <h3>토큰 갱신</h3>
+        <button onclick="refresh()">리프레시</button>
+        <div class="response" id="refreshResponse"></div>
+
+        <h3>로그아웃</h3>
+        <button onclick="logout()">로그아웃</button>
+        <div class="response" id="logoutResponse"></div>
+    </div>
+
+    <!-- User API 테스트 (Envoy Gateway 통해서) -->
+    <div class="section">
+        <h2>👤 User Service API (Envoy Gateway - 포트 15000)</h2>
+        
+        <h3>내 정보 조회</h3>
+        <button onclick="getMyInfo()">GET /api/v1/users/me</button>
+        <div class="response" id="getMyInfoResponse"></div>
+
+        <h3>내 정보 수정</h3>
+        <input type="email" id="updateEmail" placeholder="새 이메일" value="updated@example.com">
+        <button onclick="updateMyInfo()">PUT /api/v1/users/me</button>
+        <div class="response" id="updateMyInfoResponse"></div>
+
+        <h3>특정 사용자 정보 조회</h3>
+        <input type="number" id="userId" placeholder="사용자 ID" value="1">
+        <button onclick="getUserInfo()">GET /api/v1/users/{id}</button>
+        <div class="response" id="getUserInfoResponse"></div>
+    </div>
+
+    <!-- 기타 테스트 -->
+    <div class="section">
+        <h2>🔧 기타 테스트</h2>
+        
+        <h3>Gateway 헬스체크</h3>
+        <button onclick="gatewayHealth()">GET /health (Gateway)</button>
+        <div class="response" id="gatewayHealthResponse"></div>
+
+        <h3>User Service 헬스체크</h3>
+        <button onclick="userServiceHealth()">GET /health (User Service)</button>
+        <div class="response" id="userServiceHealthResponse"></div>
+
+        <h3>DB 연결 테스트</h3>
+        <button onclick="dbTest()">GET /db-test (User Service)</button>
+        <div class="response" id="dbTestResponse"></div>
+    </div>
+
+    <script>
+        let accessToken = localStorage.getItem('accessToken');
+        let refreshToken = localStorage.getItem('refreshToken');
+
+        // 페이지 로드 시 토큰 상태 업데이트
+        updateTokenStatus();
+
+        function updateTokenStatus() {
+            const statusDiv = document.getElementById('tokenStatus');
+            const infoDiv = document.getElementById('tokenInfo');
+            
+            if (accessToken) {
+                try {
+                    const payload = JSON.parse(atob(accessToken.split('.')[1]));
+                    const exp = new Date(payload.exp * 1000);
+                    const now = new Date();
+                    
+                    if (exp > now) {
+                        statusDiv.innerHTML = `<span class="success">✅ 로그인됨</span>`;
+                        infoDiv.innerHTML = `사용자: ${payload.email} | 만료: ${exp.toLocaleString()}`;
+                    } else {
+                        statusDiv.innerHTML = `<span class="error">❌ 토큰 만료됨</span>`;
+                        infoDiv.innerHTML = `만료 시간: ${exp.toLocaleString()}`;
+                    }
+                } catch (e) {
+                    statusDiv.innerHTML = `<span class="error">❌ 잘못된 토큰</span>`;
+                    infoDiv.innerHTML = '';
+                }
+            } else {
+                statusDiv.innerHTML = `<span class="error">❌ 로그인되지 않음</span>`;
+                infoDiv.innerHTML = '';
+            }
+        }
+
+        function clearToken() {
+            accessToken = null;
+            refreshToken = null;
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            updateTokenStatus();
+        }
+
+        async function makeRequest(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+                
+                const text = await response.text();
+                let data;
+                
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    data = { raw: text };
+                }
+                
+                return {
+                    ok: response.ok,
+                    status: response.status,
+                    data: data
+                };
+            } catch (error) {
+                return {
+                    ok: false,
+                    status: 0,
+                    data: { error: error.message }
+                };
+            }
+        }
+
+        function displayResponse(elementId, response) {
+            const element = document.getElementById(elementId);
+            const statusClass = response.ok ? 'success' : 'error';
+            element.innerHTML = `
+                <div class="${statusClass}">Status: ${response.status}</div>
+                <pre>${JSON.stringify(response.data, null, 2)}</pre>
+            `;
+        }
+
+        // Auth API 함수들
+        async function register() {
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            
+            const response = await makeRequest('http://localhost:15001/api/v1/register', {
+                method: 'POST',
+                body: JSON.stringify({ email, password })
+            });
+            
+            if (response.ok && response.data.access_token) {
+                accessToken = response.data.access_token;
+                refreshToken = response.data.refresh_token;
+                localStorage.setItem('accessToken', accessToken);
+                localStorage.setItem('refreshToken', refreshToken);
+                updateTokenStatus();
+            }
+            
+            displayResponse('registerResponse', response);
+        }
+
+        async function login() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            const response = await makeRequest('http://localhost:15001/api/v1/login', {
+                method: 'POST',
+                body: JSON.stringify({ email, password })
+            });
+            
+            if (response.ok && response.data.access_token) {
+                accessToken = response.data.access_token;
+                refreshToken = response.data.refresh_token;
+                localStorage.setItem('accessToken', accessToken);
+                localStorage.setItem('refreshToken', refreshToken);
+                updateTokenStatus();
+            }
+            
+            displayResponse('loginResponse', response);
+        }
+
+        async function refresh() {
+            if (!refreshToken) {
+                displayResponse('refreshResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '리프레시 토큰이 없습니다' }
+                });
+                return;
+            }
+
+            const response = await makeRequest('http://localhost:15001/api/v1/refresh', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({ refresh_token: refreshToken })
+            });
+            
+            if (response.ok && response.data.access_token) {
+                accessToken = response.data.access_token;
+                localStorage.setItem('accessToken', accessToken);
+                updateTokenStatus();
+            }
+            
+            displayResponse('refreshResponse', response);
+        }
+
+        async function logout() {
+            if (!accessToken) {
+                displayResponse('logoutResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인되지 않았습니다' }
+                });
+                return;
+            }
+
+            const response = await makeRequest('http://localhost:15001/api/v1/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            if (response.ok) {
+                clearToken();
+            }
+            
+            displayResponse('logoutResponse', response);
+        }
+
+        // User API 함수들 (Envoy Gateway 통해서)
+        async function getMyInfo() {
+            if (!accessToken) {
+                displayResponse('getMyInfoResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const response = await makeRequest('http://localhost:15000/api/v1/users/me', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            displayResponse('getMyInfoResponse', response);
+        }
+
+        async function updateMyInfo() {
+            if (!accessToken) {
+                displayResponse('updateMyInfoResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const email = document.getElementById('updateEmail').value;
+            
+            const response = await makeRequest('http://localhost:15000/api/v1/users/me', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({ email })
+            });
+            
+            displayResponse('updateMyInfoResponse', response);
+        }
+
+        async function getUserInfo() {
+            if (!accessToken) {
+                displayResponse('getUserInfoResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const userId = document.getElementById('userId').value;
+            
+            const response = await makeRequest(`http://localhost:15000/api/v1/users/${userId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            displayResponse('getUserInfoResponse', response);
+        }
+
+        // 기타 테스트 함수들
+        async function gatewayHealth() {
+            const response = await makeRequest('http://localhost:15000/health');
+            displayResponse('gatewayHealthResponse', response);
+        }
+
+        async function userServiceHealth() {
+            const response = await makeRequest('http://localhost:15002/health');
+            displayResponse('userServiceHealthResponse', response);
+        }
+
+        async function dbTest() {
+            const response = await makeRequest('http://localhost:15002/db-test');
+            displayResponse('dbTestResponse', response);
+        }
+    </script>
+</body>
+</html>
