@@ -3,4 +3,9 @@ ktor:
         modules:
             - com.asdf.ApplicationKt.module
     deployment:
-        port: 8080
+        port: 15003
+
+mongodb:
+    host: ${MONGODB_HOST:localhost}
+    port: ${MONGODB_PORT:27017}
+    database: ${MONGODB_DATABASE:teamdb}

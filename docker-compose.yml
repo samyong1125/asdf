@@ -31,6 +31,18 @@ services:
     networks:
       - asdf
 
+  mongodb:
+    image: mongo:7
+    container_name: team-mongodb
+    ports:
+      - "50003:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=teamdb
+    networks:
+      - asdf
+
   auth-server:
     build:
       context: ./back/auth
@@ -76,6 +88,22 @@ services:
     networks:
       - asdf
 
+  team-server:
+    build:
+      context: ./back/services/team
+      dockerfile: Dockerfile
+    container_name: team
+    ports:
+      - "15003:15003"
+    environment:
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_DATABASE=teamdb
+    depends_on:
+      - mongodb
+    networks:
+      - asdf
+
   gateway:
     build:
       context: ./back/gateway
@@ -87,6 +115,7 @@ services:
     depends_on:
       - auth-server
       - user-server
+      - team-server
     networks:
       - asdf
 
@@ -94,6 +123,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  mongodb_data:
 
 networks:
   asdf:

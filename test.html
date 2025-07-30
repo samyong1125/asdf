@@ -72,6 +72,58 @@
         <div class="response" id="getUserInfoResponse"></div>
     </div>
 
+    <!-- Team API 테스트 (Envoy Gateway 통해서) -->
+    <div class="section">
+        <h2>👥 Team Service API (Envoy Gateway - 포트 15000)</h2>
+        
+        <h3>팀 생성</h3>
+        <input type="text" id="teamName" placeholder="팀 이름" value="개발팀">
+        <button onclick="createTeam()">POST /api/v1/teams</button>
+        <div class="response" id="createTeamResponse"></div>
+
+        <h3>내가 속한 팀 목록 조회</h3>
+        <button onclick="getMyTeams()">GET /api/v1/teams</button>
+        <div class="response" id="getMyTeamsResponse"></div>
+
+        <h3>특정 팀 정보 조회</h3>
+        <input type="text" id="teamId" placeholder="팀 ID" value="">
+        <button onclick="getTeam()">GET /api/v1/teams/{id}</button>
+        <div class="response" id="getTeamResponse"></div>
+
+        <h3>팀 정보 수정</h3>
+        <input type="text" id="updateTeamId" placeholder="팀 ID" value="">
+        <input type="text" id="updateTeamName" placeholder="새 팀 이름" value="수정된 팀명">
+        <button onclick="updateTeam()">PUT /api/v1/teams/{id}</button>
+        <div class="response" id="updateTeamResponse"></div>
+
+        <h3>팀 삭제</h3>
+        <input type="text" id="deleteTeamId" placeholder="팀 ID" value="">
+        <button onclick="deleteTeam()">DELETE /api/v1/teams/{id}</button>
+        <div class="response" id="deleteTeamResponse"></div>
+
+        <h3>팀 멤버 추가</h3>
+        <input type="text" id="addMemberTeamId" placeholder="팀 ID" value="">
+        <input type="number" id="addMemberUserId" placeholder="사용자 ID" value="2">
+        <button onclick="addMember()">POST /api/v1/teams/{id}/members</button>
+        <div class="response" id="addMemberResponse"></div>
+
+        <h3>팀 멤버 목록 조회</h3>
+        <input type="text" id="membersTeamId" placeholder="팀 ID" value="">
+        <button onclick="getTeamMembers()">GET /api/v1/teams/{id}/members</button>
+        <div class="response" id="getTeamMembersResponse"></div>
+
+        <h3>팀 멤버 제거</h3>
+        <input type="text" id="removeMemberTeamId" placeholder="팀 ID" value="">
+        <input type="number" id="removeMemberUserId" placeholder="사용자 ID" value="2">
+        <button onclick="removeMember()">DELETE /api/v1/teams/{id}/members/{userId}</button>
+        <div class="response" id="removeMemberResponse"></div>
+
+        <h3>특정 사용자가 속한 팀 목록</h3>
+        <input type="number" id="userTeamsUserId" placeholder="사용자 ID" value="1">
+        <button onclick="getUserTeams()">GET /api/v1/users/{id}/teams</button>
+        <div class="response" id="getUserTeamsResponse"></div>
+    </div>
+
     <!-- 기타 테스트 -->
     <div class="section">
         <h2>🔧 기타 테스트</h2>
@@ -84,7 +136,15 @@
         <button onclick="userServiceHealth()">GET /health (User Service)</button>
         <div class="response" id="userServiceHealthResponse"></div>
 
-        <h3>DB 연결 테스트</h3>
+        <h3>Team Service 헬스체크</h3>
+        <button onclick="teamServiceHealth()">GET /health (Team Service)</button>
+        <div class="response" id="teamServiceHealthResponse"></div>
+
+        <h3>Team Service DB 연결 테스트</h3>
+        <button onclick="teamDbTest()">GET /health/db (Team Service)</button>
+        <div class="response" id="teamDbTestResponse"></div>
+
+        <h3>User DB 연결 테스트</h3>
         <button onclick="dbTest()">GET /db-test (User Service)</button>
         <div class="response" id="dbTestResponse"></div>
     </div>
@@ -331,6 +391,271 @@
             displayResponse('getUserInfoResponse', response);
         }
 
+        // Team API 함수들 (Envoy Gateway 통해서)
+        async function createTeam() {
+            if (!accessToken) {
+                displayResponse('createTeamResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const name = document.getElementById('teamName').value;
+            
+            const response = await makeRequest('http://localhost:15000/api/v1/teams', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({ name })
+            });
+            
+            displayResponse('createTeamResponse', response);
+        }
+
+        async function getMyTeams() {
+            if (!accessToken) {
+                displayResponse('getMyTeamsResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const response = await makeRequest('http://localhost:15000/api/v1/teams', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            displayResponse('getMyTeamsResponse', response);
+        }
+
+        async function getTeam() {
+            if (!accessToken) {
+                displayResponse('getTeamResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const teamId = document.getElementById('teamId').value;
+            if (!teamId) {
+                displayResponse('getTeamResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '팀 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const response = await makeRequest(`http://localhost:15000/api/v1/teams/${teamId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            displayResponse('getTeamResponse', response);
+        }
+
+        async function updateTeam() {
+            if (!accessToken) {
+                displayResponse('updateTeamResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const teamId = document.getElementById('updateTeamId').value;
+            const name = document.getElementById('updateTeamName').value;
+            
+            if (!teamId) {
+                displayResponse('updateTeamResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '팀 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const response = await makeRequest(`http://localhost:15000/api/v1/teams/${teamId}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({ name })
+            });
+            
+            displayResponse('updateTeamResponse', response);
+        }
+
+        async function deleteTeam() {
+            if (!accessToken) {
+                displayResponse('deleteTeamResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const teamId = document.getElementById('deleteTeamId').value;
+            
+            if (!teamId) {
+                displayResponse('deleteTeamResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '팀 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const response = await makeRequest(`http://localhost:15000/api/v1/teams/${teamId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            displayResponse('deleteTeamResponse', response);
+        }
+
+        async function addMember() {
+            if (!accessToken) {
+                displayResponse('addMemberResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const teamId = document.getElementById('addMemberTeamId').value;
+            const userId = document.getElementById('addMemberUserId').value;
+            
+            if (!teamId || !userId) {
+                displayResponse('addMemberResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '팀 ID와 사용자 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const response = await makeRequest(`http://localhost:15000/api/v1/teams/${teamId}/members`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({ userId: parseInt(userId) })
+            });
+            
+            displayResponse('addMemberResponse', response);
+        }
+
+        async function getTeamMembers() {
+            if (!accessToken) {
+                displayResponse('getTeamMembersResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const teamId = document.getElementById('membersTeamId').value;
+            
+            if (!teamId) {
+                displayResponse('getTeamMembersResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '팀 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const response = await makeRequest(`http://localhost:15000/api/v1/teams/${teamId}/members`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            displayResponse('getTeamMembersResponse', response);
+        }
+
+        async function removeMember() {
+            if (!accessToken) {
+                displayResponse('removeMemberResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const teamId = document.getElementById('removeMemberTeamId').value;
+            const userId = document.getElementById('removeMemberUserId').value;
+            
+            if (!teamId || !userId) {
+                displayResponse('removeMemberResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '팀 ID와 사용자 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const response = await makeRequest(`http://localhost:15000/api/v1/teams/${teamId}/members/${userId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            displayResponse('removeMemberResponse', response);
+        }
+
+        async function getUserTeams() {
+            if (!accessToken) {
+                displayResponse('getUserTeamsResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+
+            const userId = document.getElementById('userTeamsUserId').value;
+            
+            if (!userId) {
+                displayResponse('getUserTeamsResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '사용자 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const response = await makeRequest(`http://localhost:15000/api/v1/users/${userId}/teams`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            displayResponse('getUserTeamsResponse', response);
+        }
+
         // 기타 테스트 함수들
         async function gatewayHealth() {
             const response = await makeRequest('http://localhost:15000/health');
@@ -340,6 +665,16 @@
         async function userServiceHealth() {
             const response = await makeRequest('http://localhost:15002/health');
             displayResponse('userServiceHealthResponse', response);
+        }
+
+        async function teamServiceHealth() {
+            const response = await makeRequest('http://localhost:15003/health');
+            displayResponse('teamServiceHealthResponse', response);
+        }
+
+        async function teamDbTest() {
+            const response = await makeRequest('http://localhost:15003/health/db');
+            displayResponse('teamDbTestResponse', response);
         }
 
         async function dbTest() {
