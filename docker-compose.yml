@@ -43,6 +43,23 @@ services:
     networks:
       - asdf
 
+  scylladb:
+    image: scylladb/scylla:6.0
+    container_name: sentinel-scylladb
+    ports:
+      - "50004:9042"  # CQL port
+      - "50005:10000" # REST API port  
+    volumes:
+      - scylladb_data:/var/lib/scylla
+    command: --seeds=scylladb --smp 1 --memory 1G --overprovisioned 1 --api-address 0.0.0.0
+    networks:
+      - asdf
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   auth-server:
     build:
       context: ./back/auth
@@ -103,7 +120,7 @@ services:
       - mongodb
     networks:
       - asdf
-
+      
   gateway:
     build:
       context: ./back/gateway
@@ -124,6 +141,7 @@ volumes:
   postgres_data:
   redis_data:
   mongodb_data:
+  scylladb_data:
 
 networks:
   asdf:
