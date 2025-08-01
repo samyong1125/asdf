@@ -31,6 +31,17 @@ services:
     networks:
       - asdf
 
+  sentinel-redis:
+    image: redis:7-alpine
+    container_name: sentinel-redis
+    command: redis-server --port 50006
+    ports:
+      - "50006:50006"
+    volumes:
+      - sentinel_redis_data:/data
+    networks:
+      - asdf
+
   mongodb:
     image: mongo:7
     container_name: team-mongodb
@@ -131,10 +142,14 @@ services:
     environment:
       - SCYLLA_HOST=scylladb
       - SCYLLA_PORT=9042
+      - REDIS_HOST=sentinel-redis
+      - REDIS_PORT=50006
       - PORT=15004
     depends_on:
       scylladb:
         condition: service_healthy
+      sentinel-redis:
+        condition: service_started
     networks:
       - asdf
       
@@ -159,6 +174,7 @@ volumes:
   redis_data:
   mongodb_data:
   scylladb_data:
+  sentinel_redis_data:
 
 networks:
   asdf:

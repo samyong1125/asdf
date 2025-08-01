@@ -1,5 +1,6 @@
 use scylla::client::session::Session;
 use scylla::response::query_result::QueryResult;
+use redis::Client as RedisClient;
 use tracing::info;
 
 /// Initialize database schema for Sentinel
@@ -72,12 +73,48 @@ pub async fn init_schema(session: &Session) -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
-/// Test database connection
-pub async fn test_connection(session: &Session) -> Result<QueryResult, Box<dyn std::error::Error>> {
+/// Initialize Redis connection
+pub async fn init_redis(redis_host: &str, redis_port: u16) -> Result<RedisClient, Box<dyn std::error::Error>> {
+    info!("Connecting to Redis at {}:{}", redis_host, redis_port);
+    
+    let redis_url = format!("redis://{}:{}", redis_host, redis_port);
+    let client = RedisClient::open(redis_url)?;
+    
+    info!("Redis connection established successfully");
+    Ok(client)
+}
+
+/// Test ScyllaDB connection
+pub async fn test_scylla_connection(session: &Session) -> Result<QueryResult, Box<dyn std::error::Error>> {
     info!("Testing ScyllaDB connection...");
     
     let result = session.query_unpaged("SELECT release_version FROM system.local", &[]).await?;
     info!("ScyllaDB connection test successful");
     
     Ok(result)
+}
+
+/// Test Redis connection
+pub async fn test_redis_connection(client: &RedisClient) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Testing Redis connection...");
+    
+    use redis::AsyncCommands;
+    let mut conn = client.get_multiplexed_async_connection().await?;
+    
+    // Simple ping test
+    let _: String = conn.ping().await?;
+    
+    // Set and get test
+    let _: () = conn.set("test_key", "test_value").await?;
+    let result: String = conn.get("test_key").await?;
+    
+    if result == "test_value" {
+        info!("Redis connection test successful");
+        // Clean up test key
+        let _: () = conn.del("test_key").await?;
+    } else {
+        return Err("Redis test failed: unexpected value".into());
+    }
+    
+    Ok(())
 }
