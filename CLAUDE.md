@@ -33,10 +33,10 @@
 **Envoy Proxy**를 API Gateway로 사용하는 JWT 기반 인증 마이크로서비스 시스템입니다. 시스템 구성:
 
 - **API Gateway**: Envoy Proxy (포트 15000) - 요청 라우팅 및 JWT 인증 처리
-- **Auth Server**: Go/Gin 서비스 (포트 15001) - 사용자 인증 및 JWT 검증 처리
+- **Auth Server**: Go/Gin 서비스 (포트 15001) - 사용자 인증 및 JWT 검증 처리 API GATEWAY를 거치지 않는 별도의 서버
 - **User Service**: Python/FastAPI (포트 15002) - 사용자 프로필 관리
 - **Team Service**: Kotlin/Ktor (포트 15003) - 팀 관리
-- **Sentinel**: Rust/Actix Web (포트 15004) - Zanzibar 스타일 권한 관리
+- **Sentinel**: Rust/Actix Web (포트 15004) - Zanzibar 스타일 권한 관리 API GATEWAY를 거치지 않는 별도의 서버
 - **PostgreSQL**: (포트 50001) - Auth/User 서비스 데이터 저장
 - **Redis**: (포트 50002) - Auth 서비스 리프레시 토큰 저장
 - **MongoDB**: (포트 50003) - Team 서비스 데이터 저장
