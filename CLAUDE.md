@@ -233,7 +233,7 @@ project:mobile-app#viewer@team:engineering#member
 
 🎯 **다음 작업**: 2단계 기본 데이터 구조 정의부터 시작
 
-### Google Zanzibar Leopard 인덱스 (참고용)
+### Google Zanzibar Leopard 인덱스
 
 **Leopard**는 Zanzibar의 중첩된 그룹과 간접 관계를 빠르게 평가하기 위한 특화된 인덱스 시스템입니다.
 
@@ -345,7 +345,7 @@ Blog Service → "user:alice can write blog:post123?" → Sentinel
 ### 개발 명령어
 ```bash
 # Sentinel 서비스만 실행
-docker-compose up -d scylladb sentinel-redis sentinel-server
+docker-compose up -d scylladb sentinel-redis sentinel
 
 # 연결 테스트
 curl http://localhost:15004/health        # 헬스체크
@@ -354,10 +354,10 @@ curl http://localhost:15004/redis-test    # Redis 연결 테스트
 curl http://localhost:15004/scylla-test   # ScyllaDB 연결 테스트
 
 # 로그 확인
-docker-compose logs sentinel-server
+docker-compose logs sentinel
 
 # 빌드 및 재시작
-docker-compose build sentinel-server && docker-compose up -d sentinel-server
+docker-compose build sentinel&& docker-compose up -d sentinel
 ```
 
 ### 개발 참고사항

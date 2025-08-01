@@ -132,7 +132,7 @@ services:
     networks:
       - asdf
 
-  sentinel-server:
+  sentinel:
     build:
       context: ./back/sentinel
       dockerfile: Dockerfile
