@@ -120,6 +120,23 @@ services:
       - mongodb
     networks:
       - asdf
+
+  sentinel-server:
+    build:
+      context: ./back/sentinel
+      dockerfile: Dockerfile
+    container_name: sentinel
+    ports:
+      - "15004:15004"
+    environment:
+      - SCYLLA_HOST=scylladb
+      - SCYLLA_PORT=9042
+      - PORT=15004
+    depends_on:
+      scylladb:
+        condition: service_healthy
+    networks:
+      - asdf
       
   gateway:
     build:
