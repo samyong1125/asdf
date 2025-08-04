@@ -26,6 +26,12 @@ dependencies {
     implementation(libs.kotlinx.datetime)
     implementation(libs.logback.classic)
     implementation(libs.ktor.server.config.yaml)
+    
+    // ✨ Sentinel HTTP 클라이언트 의존성 추가
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.client.content.negotiation)
+    
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit)
 }

@@ -76,12 +76,18 @@ impl PermissionHierarchy {
         }
     }
     
-    /// 특정 권한이 상속하는 모든 권한 목록 반환
+    /// 특정 권한을 만족시킬 수 있는 상위 권한들 반환
+    /// 예: viewer 체크 시 -> [owner, admin, editor, commenter] 반환
+    /// 즉, 요청된 권한보다 높은 레벨의 권한들을 반환
     pub fn get_inherited_permissions(&self, permission: &str) -> Vec<String> {
-        let mut result = vec![permission.to_string()];
+        let mut result = Vec::new();
+        let current_level = self.get_level(permission);
         
-        if let Some(inherited) = self.inheritance.get(permission) {
-            result.extend(inherited.clone());
+        // 현재 권한보다 높은 레벨의 모든 권한을 반환 (상위 권한이 하위 권한을 포함)
+        for (perm, &level) in &self.levels {
+            if level > current_level {
+                result.push(perm.clone());
+            }
         }
         
         result

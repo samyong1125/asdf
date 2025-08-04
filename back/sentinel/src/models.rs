@@ -115,6 +115,8 @@ pub struct CheckRequest {
     pub relation: String,
     /// 사용자 ID
     pub user_id: String,
+    /// 사용자 타입 (선택적, 기본값: "user")
+    pub user_type: Option<String>,
     /// 일관성 토큰 (선택적)
     pub zookie: Option<String>,
 }

@@ -1,5 +1,6 @@
 package com.asdf.services
 
+import com.asdf.clients.SentinelClient
 import com.asdf.config.DatabaseConfig
 import com.asdf.models.*
 import com.mongodb.kotlin.client.coroutine.MongoCollection
@@ -17,6 +18,9 @@ import java.util.*
 class TeamService {
     private val database = DatabaseConfig.getDatabase()
     private val teamsCollection: MongoCollection<Document> = database.getCollection("teams")
+    private val sentinelClient = SentinelClient(
+        System.getenv("SENTINEL_URL") ?: "http://localhost:15004"
+    )
     
     suspend fun createTeam(request: CreateTeamRequest, creatorUserId: Int): TeamResponse {
         val now = Clock.System.now()
@@ -34,6 +38,14 @@ class TeamService {
         
         val result = teamsCollection.insertOne(teamDoc)
         val insertedId = result.insertedId?.asObjectId()?.value
+        
+        // ✨ MongoDB 저장 성공 시 Sentinel에 팀 생성자 멤버십 권한 추가
+        if (insertedId != null) {
+            val sentinelSuccess = sentinelClient.addTeamMember(insertedId.toString(), creatorUserId)
+            if (!sentinelSuccess) {
+                println("⚠️ 팀 생성은 성공했지만 Sentinel 권한 동기화 실패 - teamId: $insertedId, creatorId: $creatorUserId")
+            }
+        }
         
         return TeamResponse(
             id = insertedId.toString(),
@@ -89,8 +101,22 @@ class TeamService {
             return false
         }
         
+        // ✨ 삭제 전에 팀 멤버 목록 조회 (Sentinel 권한 제거용)
+        val team = getTeamById(teamId)
+        
         val result = teamsCollection.deleteOne(Filters.eq("_id", objectId))
-        return result.deletedCount > 0
+        val success = result.deletedCount > 0
+        
+        // ✨ MongoDB 삭제 성공 시 Sentinel에서 모든 멤버십 권한 제거
+        if (success && team != null) {
+            val userIds = team.members.map { it.userId }
+            val sentinelSuccess = sentinelClient.removeTeamMembers(teamId, userIds)
+            if (!sentinelSuccess) {
+                println("⚠️ 팀 삭제는 성공했지만 Sentinel 권한 동기화 실패 - teamId: $teamId, memberIds: $userIds")
+            }
+        }
+        
+        return success
     }
     
     suspend fun addMember(teamId: String, userId: Int): Boolean {
@@ -123,7 +149,17 @@ class TeamService {
         )
         
         val result = teamsCollection.updateOne(Filters.eq("_id", objectId), update)
-        return result.modifiedCount > 0
+        val success = result.modifiedCount > 0
+        
+        // ✨ MongoDB 업데이트 성공 시 Sentinel에 멤버십 권한 추가
+        if (success) {
+            val sentinelSuccess = sentinelClient.addTeamMember(teamId, userId)
+            if (!sentinelSuccess) {
+                println("⚠️ 멤버 추가는 성공했지만 Sentinel 권한 동기화 실패 - teamId: $teamId, userId: $userId")
+            }
+        }
+        
+        return success
     }
     
     suspend fun removeMember(teamId: String, userId: Int): Boolean {
@@ -140,7 +176,17 @@ class TeamService {
         )
         
         val result = teamsCollection.updateOne(Filters.eq("_id", objectId), update)
-        return result.modifiedCount > 0
+        val success = result.modifiedCount > 0
+        
+        // ✨ MongoDB 업데이트 성공 시 Sentinel에서 멤버십 권한 제거
+        if (success) {
+            val sentinelSuccess = sentinelClient.removeTeamMember(teamId, userId)
+            if (!sentinelSuccess) {
+                println("⚠️ 멤버 제거는 성공했지만 Sentinel 권한 동기화 실패 - teamId: $teamId, userId: $userId")
+            }
+        }
+        
+        return success
     }
     
     suspend fun getTeamMembers(teamId: String): List<TeamMember>? {

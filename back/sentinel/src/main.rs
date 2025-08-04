@@ -11,6 +11,8 @@ mod errors;
 mod models;
 mod tuple_store;
 mod permission_hierarchy;
+mod permission_checker;
+mod api_handlers;
 
 // App State to hold database connections
 #[derive(Clone)]
@@ -155,7 +157,14 @@ async fn main() -> std::io::Result<()> {
             .route("/redis-test", web::get().to(redis_test))
             .service(
                 web::scope("/api/v1")
-                    // TODO: Add Zanzibar API endpoints
+                    // Zanzibar Core API
+                    .route("/check", web::post().to(api_handlers::check_permission))
+                    .route("/write", web::post().to(api_handlers::write_permissions))
+                    .route("/read", web::post().to(api_handlers::read_permissions))
+                    
+                    // Debug/Utility APIs
+                    .route("/users/{user_id}/permissions", web::get().to(api_handlers::get_user_permissions))
+                    .route("/objects/{namespace}/{object_id}/permissions", web::get().to(api_handlers::get_object_permissions))
             )
     })
     .bind(format!("0.0.0.0:{}", port))?

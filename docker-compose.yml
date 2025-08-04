@@ -127,8 +127,10 @@ services:
       - MONGODB_HOST=mongodb
       - MONGODB_PORT=27017
       - MONGODB_DATABASE=teamdb
+      - SENTINEL_URL=http://sentinel:15004
     depends_on:
       - mongodb
+      - sentinel
     networks:
       - asdf
 
