@@ -7,6 +7,10 @@ use std::sync::Arc;
 use tracing::{info, error};
 
 mod database;
+mod errors;
+mod models;
+mod tuple_store;
+mod permission_hierarchy;
 
 // App State to hold database connections
 #[derive(Clone)]

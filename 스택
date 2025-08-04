@@ -1,0 +1,10 @@
+gateway -> envoy
+auth -> go - gin
+sentinel -> rust - actix web
+
+services ↓
+user -> python - fast api
+team -> kotlin - ktor
+git -> ruby - ruby on rails
+docs -> elixir - phoenix
+mail -> java - spring boot

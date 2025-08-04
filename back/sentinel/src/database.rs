@@ -69,6 +69,54 @@ pub async fn init_schema(session: &Session) -> Result<(), Box<dyn std::error::Er
     session.query_unpaged(create_changelog_table, &[]).await?;
     info!("Table 'changelog' created successfully");
 
+    // Create user_memberships table for fast user-based queries
+    let create_user_memberships_table = "
+        CREATE TABLE IF NOT EXISTS user_memberships (
+            user_id text,
+            user_type text,
+            namespace text,
+            object_id text,
+            relation text,
+            created_at timestamp,
+            PRIMARY KEY ((user_id, user_type), namespace, object_id, relation)
+        )
+    ";
+
+    session.query_unpaged(create_user_memberships_table, &[]).await?;
+    info!("Table 'user_memberships' created successfully");
+
+    // Create object_permissions table for fast object-based queries  
+    let create_object_permissions_table = "
+        CREATE TABLE IF NOT EXISTS object_permissions (
+            namespace text,
+            object_id text,
+            relation text,
+            user_type text,
+            user_id text,
+            created_at timestamp,
+            PRIMARY KEY ((namespace, object_id), relation, user_type, user_id)
+        )
+    ";
+
+    session.query_unpaged(create_object_permissions_table, &[]).await?;
+    info!("Table 'object_permissions' created successfully");
+
+    // Create relation_index table for fast relation-based queries
+    let create_relation_index_table = "
+        CREATE TABLE IF NOT EXISTS relation_index (
+            namespace text,
+            relation text,
+            object_id text,
+            user_type text,
+            user_id text,
+            created_at timestamp,
+            PRIMARY KEY ((namespace, relation), object_id, user_type, user_id)
+        )
+    ";
+
+    session.query_unpaged(create_relation_index_table, &[]).await?;
+    info!("Table 'relation_index' created successfully");
+
     info!("Database schema initialization completed");
     Ok(())
 }
