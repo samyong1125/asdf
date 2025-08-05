@@ -150,7 +150,7 @@
 
         <h3>특정 사용자가 속한 팀 목록</h3>
         <input type="number" id="userTeamsUserId" placeholder="사용자 ID" value="1">
-        <button onclick="getUserTeams()">GET /api/v1/users/{id}/teams</button>
+        <button onclick="getUserTeams()">GET /api/v1/teams/user/{id}</button>
         <div class="response" id="getUserTeamsResponse"></div>
     </div>
 
@@ -845,7 +845,7 @@
                 return;
             }
             
-            const response = await makeRequest(`http://localhost:15000/api/v1/users/${userId}/teams`, {
+            const response = await makeRequest(`http://localhost:15000/api/v1/teams/user/${userId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`

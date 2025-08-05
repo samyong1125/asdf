@@ -169,8 +169,8 @@ class TeamController(private val teamService: TeamService) {
         }
         
         // 특정 사용자가 속한 팀 목록 조회
-        route("/api/v1/users") {
-            get("/{userId}/teams") {
+        route("/api/v1/teams") {
+            get("/user/{userId}") {
                 val userId = call.parameters["userId"]?.toIntOrNull() ?: run {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "유효한 사용자 ID가 필요합니다"))
                     return@get
