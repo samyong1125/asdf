@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpResponse, HttpServer, Result};
+use actix_cors::Cors;
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
 use redis::Client as RedisClient;
@@ -149,7 +150,14 @@ async fn main() -> std::io::Result<()> {
     info!("Starting Sentinel server on port {}", port);
 
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header()
+            .max_age(3600);
+
         App::new()
+            .wrap(cors)
             .app_data(web::Data::new(app_state.clone()))
             .route("/health", web::get().to(health))
             .route("/db-test", web::get().to(db_test))

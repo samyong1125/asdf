@@ -170,6 +170,21 @@ services:
     networks:
       - asdf
 
+  # 관리 도구들 (16000번대 포트)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    ports:
+      - "16001:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@asdf.com
+      PGADMIN_DEFAULT_PASSWORD: asdf
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    depends_on:
+      - postgres
+    networks:
+      - asdf
+
 
 volumes:
   postgres_data:

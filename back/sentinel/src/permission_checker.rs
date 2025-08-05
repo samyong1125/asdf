@@ -157,18 +157,25 @@ impl PermissionChecker {
         ).await?;
 
         for tuple in all_tuples {
-            // userset 형태인지 확인 (user_type이 'team' 등)
-            if tuple.user_type != "user" {
-                // 사용자가 해당 userset에 속하는지 확인
-                if self.check_userset_membership(
-                    &tuple.user_type,
-                    &tuple.user_id,
-                    user_type,
-                    user_id,
-                    visited,
-                ).await? {
-                    result.add_team_permission(&tuple.user_type, &tuple.user_id, &self.hierarchy);
-                    return Ok(true);
+            // userset 형태인지 확인 (user_type이 'userset')
+            if tuple.user_type == "userset" {
+                // userset_id 파싱: "teams:backend#member" -> (teams, backend, member)
+                if let Some((userset_namespace, userset_object_relation)) = tuple.user_id.split_once(':') {
+                    if let Some((userset_object, userset_relation)) = userset_object_relation.split_once('#') {
+                        // 사용자가 해당 userset에 속하는지 확인
+                        if self.check_permission_recursive(
+                            userset_namespace,
+                            userset_object,
+                            userset_relation,
+                            user_type,
+                            user_id,
+                            visited,
+                            result,
+                        ).await? {
+                            result.add_team_permission(userset_namespace, &tuple.user_id, &self.hierarchy);
+                            return Ok(true);
+                        }
+                    }
                 }
             }
         }

@@ -48,6 +48,43 @@ class SentinelClient(private val baseUrl: String) {
     }
     
     /**
+     * 팀 오너 추가 (팀 생성자용)
+     */
+    suspend fun addTeamOwner(teamId: String, userId: Int): Boolean {
+        return try {
+            val request = SentinelWriteRequest(
+                updates = listOf(
+                    SentinelTupleUpdate(
+                        operation = "Insert",
+                        tuple = SentinelTuple(
+                            namespace = "teams",
+                            object_id = teamId,
+                            relation = "owner",
+                            user_type = "user",
+                            user_id = userId.toString(),
+                            created_at = Clock.System.now().toString()
+                        )
+                    )
+                )
+            )
+            
+            val response = client.post("$baseUrl/api/v1/write") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+            
+            val success = response.status.isSuccess()
+            if (!success) {
+                println("Sentinel addTeamOwner 실패: ${response.status} - teamId: $teamId, userId: $userId")
+            }
+            success
+        } catch (e: Exception) {
+            println("Sentinel addTeamOwner 호출 실패: ${e.message} - teamId: $teamId, userId: $userId")
+            false
+        }
+    }
+    
+    /**
      * 팀 멤버 추가 - 단일 멤버
      */
     suspend fun addTeamMember(teamId: String, userId: Int): Boolean {
@@ -57,7 +94,7 @@ class SentinelClient(private val baseUrl: String) {
                     SentinelTupleUpdate(
                         operation = "Insert",
                         tuple = SentinelTuple(
-                            namespace = "team",
+                            namespace = "teams",
                             object_id = teamId,
                             relation = "member",
                             user_type = "user",
@@ -94,7 +131,7 @@ class SentinelClient(private val baseUrl: String) {
                     SentinelTupleUpdate(
                         operation = "Delete",
                         tuple = SentinelTuple(
-                            namespace = "team",
+                            namespace = "teams",
                             object_id = teamId,
                             relation = "member",
                             user_type = "user",
@@ -195,6 +232,63 @@ class SentinelClient(private val baseUrl: String) {
             success
         } catch (e: Exception) {
             println("Sentinel removeTeamMembers 호출 실패: ${e.message} - teamId: $teamId, userIds: $userIds")
+            false
+        }
+    }
+    
+    /**
+     * 팀 삭제 시 모든 관련 권한 제거 (owner, member 등 모든 관계)
+     */
+    suspend fun removeAllTeamPermissions(teamId: String, userIds: List<Int>): Boolean {
+        println("🔥 SentinelClient.removeAllTeamPermissions 호출: teamId=$teamId, userIds=$userIds")
+        if (userIds.isEmpty()) return true
+        
+        return try {
+            val updates = mutableListOf<SentinelTupleUpdate>()
+            
+            // 각 사용자에 대해 owner, member 권한 모두 삭제
+            for (userId in userIds) {
+                // owner 권한 삭제
+                updates.add(SentinelTupleUpdate(
+                    operation = "Delete",
+                    tuple = SentinelTuple(
+                        namespace = "teams",
+                        object_id = teamId,
+                        relation = "owner",
+                        user_type = "user",
+                        user_id = userId.toString(),
+                        created_at = Clock.System.now().toString()
+                    )
+                ))
+                
+                // member 권한 삭제 (혹시 있을 수 있으므로)
+                updates.add(SentinelTupleUpdate(
+                    operation = "Delete",
+                    tuple = SentinelTuple(
+                        namespace = "teams",
+                        object_id = teamId,
+                        relation = "member",
+                        user_type = "user",
+                        user_id = userId.toString(),
+                        created_at = Clock.System.now().toString()
+                    )
+                ))
+            }
+            
+            val request = SentinelWriteRequest(updates = updates)
+            
+            val response = client.post("$baseUrl/api/v1/write") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+            
+            val success = response.status.isSuccess()
+            if (!success) {
+                println("Sentinel removeAllTeamPermissions 실패: ${response.status} - teamId: $teamId, userIds: $userIds")
+            }
+            success
+        } catch (e: Exception) {
+            println("Sentinel removeAllTeamPermissions 호출 실패: ${e.message} - teamId: $teamId, userIds: $userIds")
             false
         }
     }

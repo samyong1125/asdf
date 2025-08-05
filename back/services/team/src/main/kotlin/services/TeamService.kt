@@ -39,11 +39,11 @@ class TeamService {
         val result = teamsCollection.insertOne(teamDoc)
         val insertedId = result.insertedId?.asObjectId()?.value
         
-        // ✨ MongoDB 저장 성공 시 Sentinel에 팀 생성자 멤버십 권한 추가
+        // ✨ MongoDB 저장 성공 시 Sentinel에 팀 생성자 owner 권한 추가
         if (insertedId != null) {
-            val sentinelSuccess = sentinelClient.addTeamMember(insertedId.toString(), creatorUserId)
+            val sentinelSuccess = sentinelClient.addTeamOwner(insertedId.toString(), creatorUserId)
             if (!sentinelSuccess) {
-                println("⚠️ 팀 생성은 성공했지만 Sentinel 권한 동기화 실패 - teamId: $insertedId, creatorId: $creatorUserId")
+                println("⚠️ 팀 생성은 성공했지만 Sentinel owner 권한 동기화 실패 - teamId: $insertedId, creatorId: $creatorUserId")
             }
         }
         
@@ -107,13 +107,17 @@ class TeamService {
         val result = teamsCollection.deleteOne(Filters.eq("_id", objectId))
         val success = result.deletedCount > 0
         
-        // ✨ MongoDB 삭제 성공 시 Sentinel에서 모든 멤버십 권한 제거
+        // ✨ MongoDB 삭제 성공 시 Sentinel에서 모든 관련 권한 제거 (owner, member 등)
         if (success && team != null) {
             val userIds = team.members.map { it.userId }
-            val sentinelSuccess = sentinelClient.removeTeamMembers(teamId, userIds)
+            println("🔥 팀 삭제 - Sentinel 권한 제거 시작: teamId=$teamId, userIds=$userIds")
+            val sentinelSuccess = sentinelClient.removeAllTeamPermissions(teamId, userIds)
+            println("🔥 팀 삭제 - Sentinel 권한 제거 결과: $sentinelSuccess")
             if (!sentinelSuccess) {
                 println("⚠️ 팀 삭제는 성공했지만 Sentinel 권한 동기화 실패 - teamId: $teamId, memberIds: $userIds")
             }
+        } else {
+            println("🔥 팀 삭제 - Sentinel 호출 안됨: success=$success, team=$team")
         }
         
         return success

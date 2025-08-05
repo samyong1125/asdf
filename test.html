@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ASDF 프로젝트 전체 API 테스트</title>
+    <title>ASDF 프로젝트 전체 API 테스트 (Sentinel 권한 관리 포함)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
@@ -15,10 +15,40 @@
         .token-info { font-size: 12px; color: #666; }
         .success { color: green; }
         .error { color: red; }
+        .warning { color: orange; background: #fff3cd; padding: 10px; border: 1px solid #ffeaa7; margin: 10px 0; }
+        .info { color: blue; background: #d1ecf1; padding: 10px; border: 1px solid #bee5eb; margin: 10px 0; }
+        .sentinel-section { background: #f8f9fa; border-left: 4px solid #007cba; }
+        .team-integration { background: #e8f5e8; border-left: 4px solid #28a745; }
+        .quick-test { background: #fff3e0; border-left: 4px solid #ff9800; }
+        select { margin: 5px; padding: 8px; }
+        .permission-result { font-weight: bold; margin: 5px 0; }
+        .permission-granted { color: green; }
+        .permission-denied { color: red; }
+        .tab-container { margin: 10px 0; }
+        .tab-button { padding: 10px 20px; margin: 5px; background: #f1f1f1; border: 1px solid #ccc; cursor: pointer; }
+        .tab-button.active { background: #007cba; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
     </style>
 </head>
 <body>
     <h1>ASDF 프로젝트 전체 API 테스트 페이지</h1>
+    
+    <!-- CORS 및 접근 정보 -->
+    <div class="warning">
+        <strong>⚠️ CORS 주의사항:</strong>
+        <ul>
+            <li>localhost:3000에서 테스트할 때 브라우저 CORS 정책으로 인해 일부 요청이 차단될 수 있습니다.</li>
+            <li>Auth Server (15001)와 Sentinel (15004)은 직접 호출하므로 CORS 헤더가 설정되어야 합니다.</li>
+            <li>다른 서비스들은 API Gateway (15000)를 통해 호출되므로 Gateway의 CORS 설정이 중요합니다.</li>
+            <li>문제 발생 시 브라우저 개발자 도구 콘솔을 확인하세요.</li>
+        </ul>
+    </div>
+    
+    <div class="info">
+        <strong>ℹ️ 서비스 구조:</strong>
+        Auth Server (15001) → 직접 호출 | Gateway (15000) → User/Team Service | Sentinel (15004) → 직접 호출
+    </div>
     
     <!-- 토큰 상태 표시 -->
     <div class="section">
@@ -124,6 +154,171 @@
         <div class="response" id="getUserTeamsResponse"></div>
     </div>
 
+    <!-- Sentinel 권한 관리 API -->
+    <div class="section sentinel-section">
+        <h2>🛡️ Sentinel 권한 관리 API (포트 15004)</h2>
+        
+        <div class="info">
+            <strong>Zanzibar 권한 모델:</strong> &lt;namespace:object#relation@user:id&gt; 형태로 권한을 관리합니다.
+        </div>
+        
+        <div class="tab-container">
+            <button class="tab-button active" onclick="showTab('sentinel-basic')">기본 API</button>
+            <button class="tab-button" onclick="showTab('sentinel-scenarios')">테스트 시나리오</button>
+            <button class="tab-button" onclick="showTab('sentinel-userset')">Userset 테스트</button>
+        </div>
+        
+        <!-- 기본 API 탭 -->
+        <div id="sentinel-basic" class="tab-content active">
+            <h3>Sentinel 헬스체크</h3>
+            <button onclick="sentinelHealth()">GET /health</button>
+            <button onclick="sentinelDbTest()">GET /db-test</button>
+            <div class="response" id="sentinelHealthResponse"></div>
+            
+            <h3>권한 검증 (Check)</h3>
+            <select id="checkNamespace">
+                <option value="documents">documents</option>
+                <option value="teams">teams</option>
+                <option value="projects">projects</option>
+            </select>
+            <input type="text" id="checkObjectId" placeholder="객체 ID" value="doc123">
+            <select id="checkRelation">
+                <option value="owner">owner</option>
+                <option value="admin">admin</option>
+                <option value="editor">editor</option>
+                <option value="commenter">commenter</option>
+                <option value="viewer">viewer</option>
+                <option value="member">member</option>
+            </select>
+            <input type="text" id="checkUserId" placeholder="사용자 ID" value="1">
+            <button onclick="checkPermission()">권한 검증</button>
+            <div class="response" id="checkPermissionResponse"></div>
+            
+            <h3>권한 튜플 생성/삭제 (Write)</h3>
+            <select id="writeNamespace">
+                <option value="documents">documents</option>
+                <option value="teams">teams</option>
+                <option value="projects">projects</option>
+            </select>
+            <input type="text" id="writeObjectId" placeholder="객체 ID" value="doc123">
+            <select id="writeRelation">
+                <option value="owner">owner</option>
+                <option value="admin">admin</option>
+                <option value="editor">editor</option>
+                <option value="commenter">commenter</option>
+                <option value="viewer">viewer</option>
+                <option value="member">member</option>
+            </select>
+            <input type="text" id="writeUserId" placeholder="사용자 ID" value="1">
+            <select id="writeOperation">
+                <option value="Insert">Insert (생성)</option>
+                <option value="Delete">Delete (삭제)</option>
+            </select>
+            <button onclick="writePermission()">권한 생성/삭제</button>
+            <div class="response" id="writePermissionResponse"></div>
+            
+            <h3>권한 튜플 조회 (Read)</h3>
+            <select id="readNamespace">
+                <option value="documents">documents</option>
+                <option value="teams">teams</option>
+                <option value="projects">projects</option>
+            </select>
+            <input type="text" id="readObjectId" placeholder="객체 ID (선택사항)" value="">
+            <input type="text" id="readUserId" placeholder="사용자 ID (선택사항)" value="">
+            <button onclick="readPermissions()">권한 조회</button>
+            <div class="response" id="readPermissionsResponse"></div>
+        </div>
+        
+        <!-- 테스트 시나리오 탭 -->
+        <div id="sentinel-scenarios" class="tab-content">
+            <h3>🚀 원클릭 테스트 시나리오</h3>
+            
+            <div class="quick-test">
+                <h4>시나리오 1: 기본 권한 테스트</h4>
+                <p>Alice를 doc123의 owner로 설정하고 viewer 권한도 상속되는지 확인</p>
+                <button onclick="runScenario1()">시나리오 1 실행</button>
+                <div class="response" id="scenario1Response"></div>
+            </div>
+            
+            <div class="quick-test">
+                <h4>시나리오 2: 권한 상속 테스트</h4>
+                <p>Bob을 doc456의 admin으로 설정하고 editor, viewer 권한이 상속되는지 확인</p>
+                <button onclick="runScenario2()">시나리오 2 실행</button>
+                <div class="response" id="scenario2Response"></div>
+            </div>
+            
+            <div class="quick-test">
+                <h4>시나리오 3: 권한 거부 테스트</h4>
+                <p>Charlie가 접근 권한이 없는 문서에 대한 권한을 확인</p>
+                <button onclick="runScenario3()">시나리오 3 실행</button>
+                <div class="response" id="scenario3Response"></div>
+            </div>
+            
+            <div class="quick-test">
+                <h4>시나리오 4: 팀 멤버십 테스트</h4>
+                <p>팀 멤버십을 통한 간접 권한 확인</p>
+                <button onclick="runScenario4()">시나리오 4 실행</button>
+                <div class="response" id="scenario4Response"></div>
+            </div>
+        </div>
+        
+        <!-- Userset 테스트 탭 -->
+        <div id="sentinel-userset" class="tab-content">
+            <h3>👥 Userset 권한 테스트</h3>
+            
+            <h4>팀 기반 권한 설정</h4>
+            <p>team:backend#member@user:alice 형태의 userset 권한 테스트</p>
+            
+            <input type="text" id="usersetTeamId" placeholder="팀 ID" value="team123">
+            <input type="text" id="usersetDocId" placeholder="문서 ID" value="api-docs">
+            <input type="text" id="usersetUserId" placeholder="사용자 ID" value="2">
+            <button onclick="createUsersetPermission()">팀 기반 권한 생성</button>
+            <button onclick="testUsersetPermission()">Userset 권한 테스트</button>
+            <div class="response" id="usersetResponse"></div>
+        </div>
+    </div>
+    
+    <!-- Team Service + Sentinel 통합 테스트 -->
+    <div class="section team-integration">
+        <h2>🔗 Team Service + Sentinel 통합 테스트</h2>
+        
+        <div class="info">
+            <strong>통합 기능:</strong> 팀 생성/수정/삭제 시 Sentinel 권한 자동 동기화 확인
+        </div>
+        
+        <h3>통합 테스트 시나리오</h3>
+        
+        <div class="quick-test">
+            <h4>통합 시나리오 1: 팀 생성 → 권한 자동 생성 확인</h4>
+            <input type="text" id="integrationTeamName" placeholder="팀 이름" value="Integration Test Team">
+            <button onclick="runIntegrationScenario1()">팀 생성 + 권한 확인</button>
+            <div class="response" id="integrationScenario1Response"></div>
+        </div>
+        
+        <div class="quick-test">
+            <h4>통합 시나리오 2: 멤버 추가 → 권한 자동 생성 확인</h4>
+            <input type="text" id="integrationTeamId2" placeholder="팀 ID" value="">
+            <input type="number" id="integrationNewMemberId" placeholder="추가할 사용자 ID" value="3">
+            <button onclick="runIntegrationScenario2()">멤버 추가 + 권한 확인</button>
+            <div class="response" id="integrationScenario2Response"></div>
+        </div>
+        
+        <div class="quick-test">
+            <h4>통합 시나리오 3: 멤버 제거 → 권한 자동 삭제 확인</h4>
+            <input type="text" id="integrationTeamId3" placeholder="팀 ID" value="">
+            <input type="number" id="integrationRemoveMemberId" placeholder="제거할 사용자 ID" value="3">
+            <button onclick="runIntegrationScenario3()">멤버 제거 + 권한 확인</button>
+            <div class="response" id="integrationScenario3Response"></div>
+        </div>
+        
+        <div class="quick-test">
+            <h4>통합 시나리오 4: 팀 삭제 → 모든 권한 삭제 확인</h4>
+            <input type="text" id="integrationTeamId4" placeholder="팀 ID" value="">
+            <button onclick="runIntegrationScenario4()">팀 삭제 + 권한 확인</button>
+            <div class="response" id="integrationScenario4Response"></div>
+        </div>
+    </div>
+    
     <!-- 기타 테스트 -->
     <div class="section">
         <h2>🔧 기타 테스트</h2>
@@ -147,6 +342,10 @@
         <h3>User DB 연결 테스트</h3>
         <button onclick="dbTest()">GET /db-test (User Service)</button>
         <div class="response" id="dbTestResponse"></div>
+        
+        <h3>Sentinel 헬스체크</h3>
+        <button onclick="sentinelHealthQuick()">GET /health (Sentinel)</button>
+        <div class="response" id="sentinelHealthQuickResponse"></div>
     </div>
 
     <script>
@@ -680,6 +879,747 @@
         async function dbTest() {
             const response = await makeRequest('http://localhost:15002/db-test');
             displayResponse('dbTestResponse', response);
+        }
+        
+        // 탭 관리 함수
+        function showTab(tabId) {
+            // 모든 탭 비활성화
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // 선택된 탭 활성화
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        // Sentinel API 함수들
+        async function sentinelHealth() {
+            const response = await makeRequest('http://localhost:15004/health');
+            displayResponse('sentinelHealthResponse', response);
+        }
+        
+        async function sentinelDbTest() {
+            const response = await makeRequest('http://localhost:15004/db-test');
+            const response2 = await makeRequest('http://localhost:15004/redis-test');
+            const response3 = await makeRequest('http://localhost:15004/scylla-test');
+            
+            const combinedResponse = {
+                ok: response.ok && response2.ok && response3.ok,
+                status: response.status,
+                data: {
+                    db_test: response.data,
+                    redis_test: response2.data,
+                    scylla_test: response3.data
+                }
+            };
+            
+            displayResponse('sentinelHealthResponse', combinedResponse);
+        }
+        
+        async function sentinelHealthQuick() {
+            const response = await makeRequest('http://localhost:15004/health');
+            displayResponse('sentinelHealthQuickResponse', response);
+        }
+        
+        async function checkPermission() {
+            const namespace = document.getElementById('checkNamespace').value;
+            const objectId = document.getElementById('checkObjectId').value;
+            const relation = document.getElementById('checkRelation').value;
+            const userId = document.getElementById('checkUserId').value;
+            
+            if (!objectId || !userId) {
+                displayResponse('checkPermissionResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '객체 ID와 사용자 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const response = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace,
+                    object_id: objectId,
+                    relation,
+                    user_type: "user",
+                    user_id: userId
+                })
+            });
+            
+            displayPermissionResult('checkPermissionResponse', response);
+        }
+        
+        async function writePermission() {
+            const namespace = document.getElementById('writeNamespace').value;
+            const objectId = document.getElementById('writeObjectId').value;
+            const relation = document.getElementById('writeRelation').value;
+            const userId = document.getElementById('writeUserId').value;
+            const operation = document.getElementById('writeOperation').value;
+            
+            if (!objectId || !userId) {
+                displayResponse('writePermissionResponse', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '객체 ID와 사용자 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const response = await makeRequest('http://localhost:15004/api/v1/write', {
+                method: 'POST',
+                body: JSON.stringify({
+                    updates: [{
+                        operation,
+                        tuple: {
+                            namespace,
+                            object_id: objectId,
+                            relation,
+                            user_type: "user",
+                            user_id: userId,
+                            created_at: new Date().toISOString()
+                        }
+                    }]
+                })
+            });
+            
+            displayResponse('writePermissionResponse', response);
+        }
+        
+        async function readPermissions() {
+            const namespace = document.getElementById('readNamespace').value;
+            const objectId = document.getElementById('readObjectId').value;
+            const userId = document.getElementById('readUserId').value;
+            
+            let tupleFilter = { namespace };
+            if (objectId) tupleFilter.object_id = objectId;
+            if (userId) {
+                tupleFilter.user_type = "user";
+                tupleFilter.user_id = userId;
+            }
+            
+            const response = await makeRequest('http://localhost:15004/api/v1/read', {
+                method: 'POST',
+                body: JSON.stringify({
+                    tuple_filter: tupleFilter
+                })
+            });
+            
+            displayResponse('readPermissionsResponse', response);
+        }
+        
+        function displayPermissionResult(elementId, response) {
+            const element = document.getElementById(elementId);
+            const statusClass = response.ok ? 'success' : 'error';
+            
+            let permissionClass = '';
+            let permissionText = '';
+            
+            if (response.ok && response.data.allowed !== undefined) {
+                permissionClass = response.data.allowed ? 'permission-granted' : 'permission-denied';
+                permissionText = response.data.allowed ? '✅ 권한 허용' : '❌ 권한 거부';
+            }
+            
+            element.innerHTML = `
+                <div class="${statusClass}">Status: ${response.status}</div>
+                <div class="permission-result ${permissionClass}">${permissionText}</div>
+                <pre>${JSON.stringify(response.data, null, 2)}</pre>
+            `;
+        }
+        
+        // 테스트 시나리오 함수들
+        async function runScenario1() {
+            const results = [];
+            
+            // 1. Alice를 doc123의 owner로 설정
+            const writeResponse = await makeRequest('http://localhost:15004/api/v1/write', {
+                method: 'POST',
+                body: JSON.stringify({
+                    updates: [{
+                        operation: "Insert",
+                        tuple: {
+                            namespace: "documents",
+                            object_id: "doc123",
+                            relation: "owner",
+                            user_type: "user",
+                            user_id: "1",
+                            created_at: new Date().toISOString()
+                        }
+                    }]
+                })
+            });
+            results.push('1. Owner 권한 생성: ' + (writeResponse.ok ? '✅' : '❌'));
+            
+            // 2. Owner 권한 확인
+            const checkOwner = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "documents",
+                    object_id: "doc123",
+                    relation: "owner",
+                    user_type: "user",
+                    user_id: "1"
+                })
+            });
+            results.push('2. Owner 권한 확인: ' + (checkOwner.ok && checkOwner.data.allowed ? '✅' : '❌'));
+            
+            // 3. Viewer 권한 상속 확인
+            const checkViewer = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "documents",
+                    object_id: "doc123",
+                    relation: "viewer",
+                    user_type: "user",
+                    user_id: "1"
+                })
+            });
+            results.push('3. Viewer 권한 상속: ' + (checkViewer.ok && checkViewer.data.allowed ? '✅' : '❌'));
+            
+            displayResponse('scenario1Response', {
+                ok: true,
+                status: 200,
+                data: { results, details: { writeResponse, checkOwner, checkViewer } }
+            });
+        }
+        
+        async function runScenario2() {
+            const results = [];
+            
+            // 1. Bob을 doc456의 admin으로 설정
+            const writeResponse = await makeRequest('http://localhost:15004/api/v1/write', {
+                method: 'POST',
+                body: JSON.stringify({
+                    updates: [{
+                        operation: "Insert",
+                        tuple: {
+                            namespace: "documents",
+                            object_id: "doc456",
+                            relation: "admin",
+                            user_type: "user",
+                            user_id: "2",
+                            created_at: new Date().toISOString()
+                        }
+                    }]
+                })
+            });
+            results.push('1. Admin 권한 생성: ' + (writeResponse.ok ? '✅' : '❌'));
+            
+            // 2. Admin 권한 확인
+            const checkAdmin = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "documents",
+                    object_id: "doc456",
+                    relation: "admin",
+                    user_type: "user",
+                    user_id: "2"
+                })
+            });
+            results.push('2. Admin 권한 확인: ' + (checkAdmin.ok && checkAdmin.data.allowed ? '✅' : '❌'));
+            
+            // 3. Editor 권한 상속 확인
+            const checkEditor = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "documents",
+                    object_id: "doc456",
+                    relation: "editor",
+                    user_type: "user",
+                    user_id: "2"
+                })
+            });
+            results.push('3. Editor 권한 상속: ' + (checkEditor.ok && checkEditor.data.allowed ? '✅' : '❌'));
+            
+            // 4. Viewer 권한 상속 확인
+            const checkViewer = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "documents",
+                    object_id: "doc456",
+                    relation: "viewer",
+                    user_type: "user",
+                    user_id: "2"
+                })
+            });
+            results.push('4. Viewer 권한 상속: ' + (checkViewer.ok && checkViewer.data.allowed ? '✅' : '❌'));
+            
+            displayResponse('scenario2Response', {
+                ok: true,
+                status: 200,
+                data: { results, details: { writeResponse, checkAdmin, checkEditor, checkViewer } }
+            });
+        }
+        
+        async function runScenario3() {
+            const results = [];
+            
+            // Charlie(user:3)가 doc123에 대한 권한이 없는지 확인
+            const checkOwner = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "documents",
+                    object_id: "doc123",
+                    relation: "owner",
+                    user_type: "user",
+                    user_id: "3"
+                })
+            });
+            results.push('1. Owner 권한 거부: ' + (checkOwner.ok && !checkOwner.data.allowed ? '✅' : '❌'));
+            
+            const checkViewer = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "documents",
+                    object_id: "doc123",
+                    relation: "viewer",
+                    user_type: "user",
+                    user_id: "3"
+                })
+            });
+            results.push('2. Viewer 권한 거부: ' + (checkViewer.ok && !checkViewer.data.allowed ? '✅' : '❌'));
+            
+            displayResponse('scenario3Response', {
+                ok: true,
+                status: 200,
+                data: { results, details: { checkOwner, checkViewer } }
+            });
+        }
+        
+        async function runScenario4() {
+            const results = [];
+            
+            // 1. 팀 멤버십 생성
+            const teamMembership = await makeRequest('http://localhost:15004/api/v1/write', {
+                method: 'POST',
+                body: JSON.stringify({
+                    updates: [{
+                        operation: "Insert",
+                        tuple: {
+                            namespace: "teams",
+                            object_id: "backend",
+                            relation: "member",
+                            user_type: "user",
+                            user_id: "4",
+                            created_at: new Date().toISOString()
+                        }
+                    }]
+                })
+            });
+            results.push('1. 팀 멤버십 생성: ' + (teamMembership.ok ? '✅' : '❌'));
+            
+            // 2. 문서에 팀 기반 권한 부여
+            const docTeamPermission = await makeRequest('http://localhost:15004/api/v1/write', {
+                method: 'POST',
+                body: JSON.stringify({
+                    updates: [{
+                        operation: "Insert",
+                        tuple: {
+                            namespace: "documents",
+                            object_id: "team-doc",
+                            relation: "editor",
+                            user_type: "userset",
+                            user_id: "teams:backend#member",
+                            created_at: new Date().toISOString()
+                        }
+                    }]
+                })
+            });
+            results.push('2. 문서 팀 권한 생성: ' + (docTeamPermission.ok ? '✅' : '❌'));
+            
+            // 3. 간접 권한 확인
+            const checkIndirectEditor = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "documents",
+                    object_id: "team-doc",
+                    relation: "editor",
+                    user_type: "user",
+                    user_id: "4"
+                })
+            });
+            results.push('3. 간접 Editor 권한: ' + (checkIndirectEditor.ok && checkIndirectEditor.data.allowed ? '✅' : '❌'));
+            
+            const checkIndirectViewer = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "documents",
+                    object_id: "team-doc",
+                    relation: "viewer",
+                    user_type: "user",
+                    user_id: "4"
+                })
+            });
+            results.push('4. 간접 Viewer 권한: ' + (checkIndirectViewer.ok && checkIndirectViewer.data.allowed ? '✅' : '❌'));
+            
+            displayResponse('scenario4Response', {
+                ok: true,
+                status: 200,
+                data: { results, details: { teamMembership, docTeamPermission, checkIndirectEditor, checkIndirectViewer } }
+            });
+        }
+        
+        async function createUsersetPermission() {
+            const teamId = document.getElementById('usersetTeamId').value;
+            const docId = document.getElementById('usersetDocId').value;
+            const userId = document.getElementById('usersetUserId').value;
+            
+            const results = [];
+            
+            // 1. 팀 멤버십 생성
+            const teamMembership = await makeRequest('http://localhost:15004/api/v1/write', {
+                method: 'POST',
+                body: JSON.stringify({
+                    updates: [{
+                        operation: "Insert",
+                        tuple: {
+                            namespace: "teams",
+                            object_id: teamId,
+                            relation: "member",
+                            user_type: "user",
+                            user_id: userId,
+                            created_at: new Date().toISOString()
+                        }
+                    }]
+                })
+            });
+            results.push('팀 멤버십 생성: ' + (teamMembership.ok ? '✅' : '❌'));
+            
+            // 2. Userset 기반 문서 권한
+            const docPermission = await makeRequest('http://localhost:15004/api/v1/write', {
+                method: 'POST',
+                body: JSON.stringify({
+                    updates: [{
+                        operation: "Insert",
+                        tuple: {
+                            namespace: "documents",
+                            object_id: docId,
+                            relation: "editor",
+                            user_type: "userset",
+                            user_id: `teams:${teamId}#member`,
+                            created_at: new Date().toISOString()
+                        }
+                    }]
+                })
+            });
+            results.push('Userset 문서 권한 생성: ' + (docPermission.ok ? '✅' : '❌'));
+            
+            displayResponse('usersetResponse', {
+                ok: true,
+                status: 200,
+                data: { results, details: { teamMembership, docPermission } }
+            });
+        }
+        
+        async function testUsersetPermission() {
+            const teamId = document.getElementById('usersetTeamId').value;
+            const docId = document.getElementById('usersetDocId').value;
+            const userId = document.getElementById('usersetUserId').value;
+            
+            const results = [];
+            
+            // Editor 권한 확인
+            const checkEditor = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "documents",
+                    object_id: docId,
+                    relation: "editor",
+                    user_type: "user",
+                    user_id: userId
+                })
+            });
+            results.push('Editor 권한: ' + (checkEditor.ok && checkEditor.data.allowed ? '✅' : '❌'));
+            
+            // Viewer 권한 상속 확인
+            const checkViewer = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "documents",
+                    object_id: docId,
+                    relation: "viewer",
+                    user_type: "user",
+                    user_id: userId
+                })
+            });
+            results.push('Viewer 권한 상속: ' + (checkViewer.ok && checkViewer.data.allowed ? '✅' : '❌'));
+            
+            displayResponse('usersetResponse', {
+                ok: true,
+                status: 200,
+                data: { results, details: { checkEditor, checkViewer } }
+            });
+        }
+        
+        // 통합 테스트 시나리오들
+        async function runIntegrationScenario1() {
+            if (!accessToken) {
+                displayResponse('integrationScenario1Response', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+            
+            const teamName = document.getElementById('integrationTeamName').value;
+            const results = [];
+            
+            // 1. 팀 생성
+            const createTeamResponse = await makeRequest('http://localhost:15000/api/v1/teams', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({ name: teamName })
+            });
+            
+            if (!createTeamResponse.ok) {
+                displayResponse('integrationScenario1Response', createTeamResponse);
+                return;
+            }
+            
+            const teamId = createTeamResponse.data.id;
+            results.push(`1. 팀 생성: ✅ (ID: ${teamId})`);
+            
+            // 2. Sentinel에서 권한 확인 (조금 대기 후)
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const checkPermission = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "teams",
+                    object_id: teamId.toString(),
+                    relation: "member",
+                    user_type: "user",
+                    user_id: getUserIdFromToken()
+                })
+            });
+            
+            results.push('2. 팀 생성자 권한 자동 생성: ' + (checkPermission.ok && checkPermission.data.allowed ? '✅' : '❌'));
+            
+            displayResponse('integrationScenario1Response', {
+                ok: true,
+                status: 200,
+                data: { results, teamId, details: { createTeamResponse, checkPermission } }
+            });
+        }
+        
+        async function runIntegrationScenario2() {
+            if (!accessToken) {
+                displayResponse('integrationScenario2Response', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+            
+            const teamId = document.getElementById('integrationTeamId2').value;
+            const memberId = document.getElementById('integrationNewMemberId').value;
+            
+            if (!teamId || !memberId) {
+                displayResponse('integrationScenario2Response', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '팀 ID와 사용자 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const results = [];
+            
+            // 1. 멤버 추가
+            const addMemberResponse = await makeRequest(`http://localhost:15000/api/v1/teams/${teamId}/members`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({ userId: parseInt(memberId) })
+            });
+            
+            results.push('1. 멤버 추가: ' + (addMemberResponse.ok ? '✅' : '❌'));
+            
+            if (!addMemberResponse.ok) {
+                displayResponse('integrationScenario2Response', addMemberResponse);
+                return;
+            }
+            
+            // 2. 권한 확인
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const checkPermission = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "teams",
+                    object_id: teamId,
+                    relation: "member",
+                    user_type: "user",
+                    user_id: memberId
+                })
+            });
+            
+            results.push('2. 새 멤버 권한 자동 생성: ' + (checkPermission.ok && checkPermission.data.allowed ? '✅' : '❌'));
+            
+            displayResponse('integrationScenario2Response', {
+                ok: true,
+                status: 200,
+                data: { results, details: { addMemberResponse, checkPermission } }
+            });
+        }
+        
+        async function runIntegrationScenario3() {
+            if (!accessToken) {
+                displayResponse('integrationScenario3Response', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+            
+            const teamId = document.getElementById('integrationTeamId3').value;
+            const memberId = document.getElementById('integrationRemoveMemberId').value;
+            
+            if (!teamId || !memberId) {
+                displayResponse('integrationScenario3Response', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '팀 ID와 사용자 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const results = [];
+            
+            // 1. 멤버 제거
+            const removeMemberResponse = await makeRequest(`http://localhost:15000/api/v1/teams/${teamId}/members/${memberId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            results.push('1. 멤버 제거: ' + (removeMemberResponse.ok ? '✅' : '❌'));
+            
+            if (!removeMemberResponse.ok) {
+                displayResponse('integrationScenario3Response', removeMemberResponse);
+                return;
+            }
+            
+            // 2. 권한 삭제 확인
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const checkPermission = await makeRequest('http://localhost:15004/api/v1/check', {
+                method: 'POST',
+                body: JSON.stringify({
+                    namespace: "teams",
+                    object_id: teamId,
+                    relation: "member",
+                    user_type: "user",
+                    user_id: memberId
+                })
+            });
+            
+            results.push('2. 멤버 권한 자동 삭제: ' + (checkPermission.ok && !checkPermission.data.allowed ? '✅' : '❌'));
+            
+            displayResponse('integrationScenario3Response', {
+                ok: true,
+                status: 200,
+                data: { results, details: { removeMemberResponse, checkPermission } }
+            });
+        }
+        
+        async function runIntegrationScenario4() {
+            if (!accessToken) {
+                displayResponse('integrationScenario4Response', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '로그인이 필요합니다' }
+                });
+                return;
+            }
+            
+            const teamId = document.getElementById('integrationTeamId4').value;
+            
+            if (!teamId) {
+                displayResponse('integrationScenario4Response', {
+                    ok: false,
+                    status: 400,
+                    data: { error: '팀 ID를 입력하세요' }
+                });
+                return;
+            }
+            
+            const results = [];
+            
+            // 1. 삭제 전 권한 조회
+            const readBefore = await makeRequest('http://localhost:15004/api/v1/read', {
+                method: 'POST',
+                body: JSON.stringify({
+                    tuple_filter: {
+                        namespace: "teams",
+                        object_id: teamId
+                    }
+                })
+            });
+            
+            const beforeCount = readBefore.ok ? readBefore.data.tuples.length : 0;
+            results.push(`1. 삭제 전 권한 수: ${beforeCount}개`);
+            
+            // 2. 팀 삭제
+            const deleteTeamResponse = await makeRequest(`http://localhost:15000/api/v1/teams/${teamId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            
+            results.push('2. 팀 삭제: ' + (deleteTeamResponse.ok ? '✅' : '❌'));
+            
+            if (!deleteTeamResponse.ok) {
+                displayResponse('integrationScenario4Response', deleteTeamResponse);
+                return;
+            }
+            
+            // 3. 권한 삭제 확인
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const readAfter = await makeRequest('http://localhost:15004/api/v1/read', {
+                method: 'POST',
+                body: JSON.stringify({
+                    tuple_filter: {
+                        namespace: "teams",
+                        object_id: teamId
+                    }
+                })
+            });
+            
+            const afterCount = readAfter.ok ? readAfter.data.tuples.length : 0;
+            results.push(`3. 삭제 후 권한 수: ${afterCount}개`);
+            results.push('4. 모든 권한 삭제: ' + (afterCount === 0 ? '✅' : '❌'));
+            
+            displayResponse('integrationScenario4Response', {
+                ok: true,
+                status: 200,
+                data: { results, details: { readBefore, deleteTeamResponse, readAfter } }
+            });
+        }
+        
+        function getUserIdFromToken() {
+            if (!accessToken) return null;
+            try {
+                const payload = JSON.parse(atob(accessToken.split('.')[1]));
+                // Sentinel API는 문자열을 기대하므로 문자열로 변환
+                const userId = payload.user_id || payload.sub;
+                return userId ? userId.toString() : null;
+            } catch (e) {
+                return null;
+            }
         }
     </script>
 </body>
