@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Services Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .service-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .service-card:hover {
+            transform: translateY(-4px);
+        }
+        
+        /* 모바일 최적화 */
+        @media (max-width: 640px) {
+            .service-card {
+                padding: 1.5rem;
+            }
+            .service-card:hover {
+                transform: translateY(-2px);
+            }
+        }
+        
+        /* 태블릿 최적화 */
+        @media (min-width: 641px) and (max-width: 1024px) {
+            .service-card {
+                padding: 2rem;
+            }
+        }
+        
+        /* 데스크톱 최적화 */
+        @media (min-width: 1025px) {
+            .service-card {
+                padding: 2.5rem;
+            }
+        }
+        
+        /* 터치 디바이스 최적화 */
+        @media (hover: none) and (pointer: coarse) {
+            .service-card:active {
+                transform: scale(0.98);
+            }
+        }
+        
+        /* 고해상도 디스플레이 최적화 */
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            .service-card {
+                border-width: 0.5px;
+            }
+        }
+        
+        /* 사용자 아이콘 버튼 */
+        .user-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            z-index: 1000;
+            padding: 4px;
+        }
+        
+        .user-btn:hover svg {
+            color: #6b7280;
+        }
+        
+        .user-btn svg {
+            color: #9ca3af;
+            transition: color 0.2s ease;
+        }
+        
+        /* 로그인 모달 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            backdrop-filter: blur(4px);
+        }
+        
+        .modal-overlay.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            width: 100%;
+            max-width: 360px;
+            margin: 20px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+        }
+        
+        .modal-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+        
+        .modal-subtitle {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #fafafa;
+            transition: all 0.2s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: #111827;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            margin-bottom: 16px;
+        }
+        
+        .login-btn:hover {
+            background: #1f2937;
+        }
+        
+        .close-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            color: #9ca3af;
+        }
+        
+        .close-btn:hover {
+            color: #6b7280;
+        }
+        
+        .modal-content {
+            position: relative;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+    <div class="w-full max-w-sm sm:max-w-2xl md:max-w-4xl lg:max-w-6xl">
+        <!-- Header -->
+        <div class="text-center mb-8 sm:mb-10 lg:mb-12">
+            <h1 class="text-2xl sm:text-3xl lg:text-4xl font-light text-gray-900 mb-2 sm:mb-3">Services</h1>
+            <div class="w-12 sm:w-16 h-px bg-gray-300 mx-auto"></div>
+            <p class="text-xs sm:text-sm text-gray-500 mt-2 sm:mt-3 hidden sm:block">Choose a service to get started</p>
+        </div>
+
+        <!-- Services Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
+            <!-- Analytics Dashboard -->
+            <a href="#" class="service-card group block bg-white rounded-lg sm:rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <div class="flex items-start justify-between mb-3 sm:mb-4">
+                    <h3 class="text-base sm:text-lg font-medium text-gray-900 group-hover:text-gray-700 pr-2">DOCS</h3>
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                    </svg>
+                </div>
+                <p class="text-xs sm:text-sm text-gray-500 leading-relaxed">문서 편집 도구</p>
+                <div class="mt-3 sm:mt-4 flex items-center text-xs text-gray-400">
+                    <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                    Active
+                </div>
+            </a>
+
+            <!-- Task Manager -->
+            <a href="#" class="service-card group block bg-white rounded-lg sm:rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <div class="flex items-start justify-between mb-3 sm:mb-4">
+                    <h3 class="text-base sm:text-lg font-medium text-gray-900 group-hover:text-gray-700 pr-2">MAIL</h3>
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                    </svg>
+                </div>
+                <p class="text-xs sm:text-sm text-gray-500 leading-relaxed">메일</p>
+                <div class="mt-3 sm:mt-4 flex items-center text-xs text-gray-400">
+                    <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                    Active
+                </div>
+            </a>
+
+            <!-- File Storage -->
+            <a href="#" class="service-card group block bg-white rounded-lg sm:rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <div class="flex items-start justify-between mb-3 sm:mb-4">
+                    <h3 class="text-base sm:text-lg font-medium text-gray-900 group-hover:text-gray-700 pr-2">GIT</h3>
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                    </svg>
+                </div>
+                <p class="text-xs sm:text-sm text-gray-500 leading-relaxed">GIT 레포지토리</p>
+                <div class="mt-3 sm:mt-4 flex items-center text-xs text-gray-400">
+                    <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                    Active
+                </div>
+            </a>
+
+            <!-- Team Chat -->
+            <a href="#" class="service-card group block bg-white rounded-lg sm:rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <div class="flex items-start justify-between mb-3 sm:mb-4">
+                    <h3 class="text-base sm:text-lg font-medium text-gray-900 group-hover:text-gray-700 pr-2">DRIVE</h3>
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                    </svg>
+                </div>
+                <p class="text-xs sm:text-sm text-gray-500 leading-relaxed">온라인 저장소</p>
+                <div class="mt-3 sm:mt-4 flex items-center text-xs text-gray-400">
+                    <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                    Active
+                </div>
+            </a>
+
+            <!-- API Gateway -->
+            <a href="#" class="service-card group block bg-white rounded-lg sm:rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <div class="flex items-start justify-between mb-3 sm:mb-4">
+                    <h3 class="text-base sm:text-lg font-medium text-gray-900 group-hover:text-gray-700 pr-2">CODE</h3>
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                    </svg>
+                </div>
+                <p class="text-xs sm:text-sm text-gray-500 leading-relaxed">온라인 코드 편집 툴</p>
+                <div class="mt-3 sm:mt-4 flex items-center text-xs text-gray-400">
+                    <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                    Active
+                </div>
+            </a>
+
+            <!-- Monitoring -->
+            <a href="#" class="service-card group block bg-white rounded-lg sm:rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <div class="flex items-start justify-between mb-3 sm:mb-4">
+                    <h3 class="text-base sm:text-lg font-medium text-gray-900 group-hover:text-gray-700 pr-2">PORTFOLIO</h3>
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                    </svg>
+                </div>
+                <p class="text-xs sm:text-sm text-gray-500 leading-relaxed">정인교의 포트폴리오</p>
+                <div class="mt-3 sm:mt-4 flex items-center text-xs text-gray-400">
+                    <div class="w-2 h-2 bg-red-400 rounded-full mr-2"></div>
+                    Down     
+                </div>
+            </a>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 sm:mt-10 lg:mt-12">
+            <div class="inline-flex items-center px-3 sm:px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-gray-100">
+                <div class="w-2 h-2 bg-red-400 rounded-full mr-2 animate-pulse"></div>
+                <p class="text-xs text-gray-500">One Service Disabled</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 로그인 버튼 -->
+    <button class="user-btn" onclick="openLoginModal()">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v-2H7v-2H4a1 1 0 01-1-1v-4a1 1 0 011-1h2.586l6.414-6.414a6 6 0 017.743 5.743L19 9z"></path>
+        </svg>
+    </button>
+
+    <!-- 로그인 모달 -->
+    <div id="loginModal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeLoginModal()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+            
+            <div class="modal-header">
+                <h2 class="modal-title">로그인</h2>
+                <p class="modal-subtitle">서비스 이용을 위해 로그인해주세요</p>
+            </div>
+            
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label class="form-label" for="login-email">이메일</label>
+                    <input class="form-input" type="email" id="login-email" name="email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="login-password">비밀번호</label>
+                    <input class="form-input" type="password" id="login-password" name="password" required>
+                </div>
+                
+                <button type="submit" class="login-btn">로그인</button>
+                
+                <div style="text-align: center;">
+                    <span style="font-size: 13px; color: #9ca3af;">계정이 없으신가요? </span>
+                    <a href="#" style="font-size: 13px; color: #6b7280; text-decoration: underline;" onclick="showSignupModal()">회원가입</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 회원가입 모달 -->
+    <div id="signupModal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeSignupModal()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+            
+            <div class="modal-header">
+                <h2 class="modal-title">회원가입</h2>
+                <p class="modal-subtitle">새 계정을 만들어보세요</p>
+            </div>
+            
+            <form onsubmit="handleSignup(event)">
+                <div class="form-group">
+                    <label class="form-label" for="signup-email">이메일</label>
+                    <input class="form-input" type="email" id="signup-email" name="email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="signup-password">비밀번호</label>
+                    <input class="form-input" type="password" id="signup-password" name="password" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="signup-confirm-password">비밀번호 확인</label>
+                    <input class="form-input" type="password" id="signup-confirm-password" name="confirmPassword" required>
+                </div>
+                
+                <button type="submit" class="login-btn">회원가입</button>
+                
+                <div style="text-align: center;">
+                    <span style="font-size: 13px; color: #9ca3af;">이미 계정이 있으신가요? </span>
+                    <a href="#" style="font-size: 13px; color: #6b7280; text-decoration: underline;" onclick="showLoginModal()">로그인</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        function openLoginModal() {
+            document.getElementById('loginModal').classList.add('show');
+        }
+        
+        function closeLoginModal() {
+            document.getElementById('loginModal').classList.remove('show');
+        }
+        
+        function openSignupModal() {
+            document.getElementById('signupModal').classList.add('show');
+        }
+        
+        function closeSignupModal() {
+            document.getElementById('signupModal').classList.remove('show');
+        }
+        
+        function showSignupModal() {
+            closeLoginModal();
+            openSignupModal();
+        }
+        
+        function showLoginModal() {
+            closeSignupModal();
+            openLoginModal();
+        }
+        
+        function handleLogin(event) {
+            event.preventDefault();
+            const email = event.target.email.value;
+            const password = event.target.password.value;
+            
+            console.log('로그인 시도:', { email, password });
+            // 여기에 실제 로그인 API 호출 로직 추가
+            alert('로그인 기능은 아직 구현되지 않았습니다.');
+        }
+        
+        function handleSignup(event) {
+            event.preventDefault();
+            const email = event.target.email.value;
+            const password = event.target.password.value;
+            const confirmPassword = event.target.confirmPassword.value;
+            
+            if (password !== confirmPassword) {
+                alert('비밀번호가 일치하지 않습니다.');
+                return;
+            }
+            
+            console.log('회원가입 시도:', { email, password });
+            // 여기에 실제 회원가입 API 호출 로직 추가
+            alert('회원가입 기능은 아직 구현되지 않았습니다.');
+        }
+        
+        // 모달 외부 클릭 시 닫기
+        document.addEventListener('click', function(event) {
+            const loginModal = document.getElementById('loginModal');
+            const signupModal = document.getElementById('signupModal');
+            
+            if (event.target === loginModal) {
+                closeLoginModal();
+            }
+            if (event.target === signupModal) {
+                closeSignupModal();
+            }
+        });
+        
+        // ESC 키로 모달 닫기
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeLoginModal();
+                closeSignupModal();
+            }
+        });
+    </script>
+</body>
+</html>
