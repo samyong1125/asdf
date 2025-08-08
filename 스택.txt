@@ -10,3 +10,4 @@ docs -> elixir - phoenix #미구현 - 기술 스택 아직 못정함
 mail -> java - spring boot #미구현
 drive -> node.js - nestjs #미구현
 code -> c# - ASP.NET Core #미구현
+notification -> rabbitmq #미구현
