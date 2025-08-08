@@ -1,6 +1,7 @@
 package com.asdf.services
 
 import com.asdf.clients.SentinelClient
+import com.asdf.clients.SentinelCheckRequest
 import com.asdf.config.DatabaseConfig
 import com.asdf.models.*
 import com.mongodb.kotlin.client.coroutine.MongoCollection
@@ -77,10 +78,17 @@ class TeamService {
         return docs.map { documentToTeam(it) }
     }
     
-    suspend fun updateTeam(teamId: String, request: UpdateTeamRequest): Boolean {
+    suspend fun updateTeam(teamId: String, request: UpdateTeamRequest, userId: Int): Boolean {
         val objectId = try {
             ObjectId(teamId)
         } catch (e: IllegalArgumentException) {
+            return false
+        }
+        
+        // 팀 관리 권한 체크 (owner 또는 admin 필요)
+        val hasManagePermission = sentinelClient.checkTeamManagePermission(teamId, userId)
+        if (!hasManagePermission) {
+            println("⚠️ 팀 수정 권한 없음 - teamId: $teamId, userId: $userId")
             return false
         }
         
@@ -94,10 +102,17 @@ class TeamService {
         return result.modifiedCount > 0
     }
     
-    suspend fun deleteTeam(teamId: String): Boolean {
+    suspend fun deleteTeam(teamId: String, userId: Int): Boolean {
         val objectId = try {
             ObjectId(teamId)
         } catch (e: IllegalArgumentException) {
+            return false
+        }
+        
+        // 팀 소유자 권한 체크 (삭제는 owner만 가능)
+        val hasOwnerPermission = sentinelClient.checkPermission(teamId, "owner", userId)
+        if (!hasOwnerPermission) {
+            println("⚠️ 팀 삭제 권한 없음 (owner 권한 필요) - teamId: $teamId, userId: $userId")
             return false
         }
         
@@ -123,10 +138,17 @@ class TeamService {
         return success
     }
     
-    suspend fun addMember(teamId: String, userId: Int): Boolean {
+    suspend fun addMember(teamId: String, targetUserId: Int, requesterId: Int): Boolean {
         val objectId = try {
             ObjectId(teamId)
         } catch (e: IllegalArgumentException) {
+            return false
+        }
+        
+        // 팀 관리 권한 체크 (owner 또는 admin 필요)
+        val hasManagePermission = sentinelClient.checkTeamManagePermission(teamId, requesterId)
+        if (!hasManagePermission) {
+            println("⚠️ 멤버 추가 권한 없음 - teamId: $teamId, requesterId: $requesterId")
             return false
         }
         
@@ -134,7 +156,7 @@ class TeamService {
         val existing = teamsCollection.find(
             Filters.and(
                 Filters.eq("_id", objectId),
-                Filters.eq("members.userId", userId)
+                Filters.eq("members.userId", targetUserId)
             )
         ).firstOrNull()
         
@@ -144,7 +166,7 @@ class TeamService {
         
         val nowDate = Date.from(Clock.System.now().toJavaInstant())
         val newMember = Document()
-            .append("userId", userId)
+            .append("userId", targetUserId)
             .append("joinedAt", nowDate)
         
         val update = Updates.combine(
@@ -157,25 +179,34 @@ class TeamService {
         
         // ✨ MongoDB 업데이트 성공 시 Sentinel에 멤버십 권한 추가
         if (success) {
-            val sentinelSuccess = sentinelClient.addTeamMember(teamId, userId)
+            val sentinelSuccess = sentinelClient.addTeamMember(teamId, targetUserId)
             if (!sentinelSuccess) {
-                println("⚠️ 멤버 추가는 성공했지만 Sentinel 권한 동기화 실패 - teamId: $teamId, userId: $userId")
+                println("⚠️ 멤버 추가는 성공했지만 Sentinel 권한 동기화 실패 - teamId: $teamId, userId: $targetUserId")
             }
         }
         
         return success
     }
     
-    suspend fun removeMember(teamId: String, userId: Int): Boolean {
+    suspend fun removeMember(teamId: String, targetUserId: Int, requesterId: Int): Boolean {
         val objectId = try {
             ObjectId(teamId)
         } catch (e: IllegalArgumentException) {
             return false
         }
         
+        // 팀 관리 권한 체크 또는 본인 탈퇴
+        val hasManagePermission = sentinelClient.checkTeamManagePermission(teamId, requesterId)
+        val isSelfRemoval = (requesterId == targetUserId)
+        
+        if (!hasManagePermission && !isSelfRemoval) {
+            println("⚠️ 멤버 제거 권한 없음 - teamId: $teamId, requesterId: $requesterId, targetUserId: $targetUserId")
+            return false
+        }
+        
         val nowDate = Date.from(Clock.System.now().toJavaInstant())
         val update = Updates.combine(
-            Updates.pull("members", Document("userId", userId)),
+            Updates.pull("members", Document("userId", targetUserId)),
             Updates.set("updatedAt", nowDate)
         )
         
@@ -184,9 +215,9 @@ class TeamService {
         
         // ✨ MongoDB 업데이트 성공 시 Sentinel에서 멤버십 권한 제거
         if (success) {
-            val sentinelSuccess = sentinelClient.removeTeamMember(teamId, userId)
+            val sentinelSuccess = sentinelClient.removeTeamMember(teamId, targetUserId)
             if (!sentinelSuccess) {
-                println("⚠️ 멤버 제거는 성공했지만 Sentinel 권한 동기화 실패 - teamId: $teamId, userId: $userId")
+                println("⚠️ 멤버 제거는 성공했지만 Sentinel 권한 동기화 실패 - teamId: $teamId, userId: $targetUserId")
             }
         }
         
@@ -196,6 +227,55 @@ class TeamService {
     suspend fun getTeamMembers(teamId: String): List<TeamMember>? {
         val team = getTeamById(teamId)
         return team?.members
+    }
+    
+    /**
+     * 배치 처리를 활용한 팀 멤버 목록 조회 (권한 포함)
+     */
+    suspend fun getTeamMembersWithRoles(teamId: String, requesterId: Int): List<TeamMemberWithRole>? {
+        val team = getTeamById(teamId) ?: return null
+        
+        // 요청자가 팀 멤버인지 체크
+        val hasAccess = sentinelClient.checkTeamMembership(teamId, requesterId)
+        if (!hasAccess) {
+            println("⚠️ 팀 멤버 목록 조회 권한 없음 - teamId: $teamId, requesterId: $requesterId")
+            return null
+        }
+        
+        // 모든 멤버들의 권한을 배치로 체크
+        val permissionChecks = mutableListOf<SentinelCheckRequest>()
+        
+        team.members.forEach { member ->
+            // 각 멤버에 대해 owner, admin, member 권한 체크
+            permissionChecks.addAll(listOf(
+                SentinelCheckRequest("teams", teamId, "owner", member.userId.toString(), "user"),
+                SentinelCheckRequest("teams", teamId, "admin", member.userId.toString(), "user"),
+                SentinelCheckRequest("teams", teamId, "member", member.userId.toString(), "user")
+            ))
+        }
+        
+        val permissionResults = sentinelClient.batchCheckPermissions(permissionChecks)
+        
+        // 결과를 멤버별로 그룹핑하여 역할 결정
+        return team.members.mapIndexed { index, member ->
+            val baseIndex = index * 3 // 각 멤버당 3개 권한 체크
+            val isOwner = permissionResults.getOrNull(baseIndex) ?: false
+            val isAdmin = permissionResults.getOrNull(baseIndex + 1) ?: false
+            val isMember = permissionResults.getOrNull(baseIndex + 2) ?: false
+            
+            val role = when {
+                isOwner -> "owner"
+                isAdmin -> "admin"  
+                isMember -> "member"
+                else -> "unknown"
+            }
+            
+            TeamMemberWithRole(
+                userId = member.userId,
+                joinedAt = member.joinedAt,
+                role = role
+            )
+        }
     }
     
     suspend fun isTeamMember(teamId: String, userId: Int): Boolean {

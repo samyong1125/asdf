@@ -69,12 +69,12 @@ class TeamController(private val teamService: TeamService) {
                 
                 try {
                     val request = call.receive<UpdateTeamRequest>()
-                    val success = teamService.updateTeam(teamId, request)
+                    val success = teamService.updateTeam(teamId, request, userId)
                     
                     if (success) {
                         call.respond(HttpStatusCode.OK, mapOf("message" to "팀 정보가 수정되었습니다"))
                     } else {
-                        call.respond(HttpStatusCode.NotFound, mapOf("error" to "팀을 찾을 수 없습니다"))
+                        call.respond(HttpStatusCode.NotFound, mapOf("error" to "팀을 찾을 수 없거나 권한이 없습니다"))
                     }
                 } catch (e: Exception) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "잘못된 요청입니다"))
@@ -93,11 +93,11 @@ class TeamController(private val teamService: TeamService) {
                     return@delete
                 }
                 
-                val success = teamService.deleteTeam(teamId)
+                val success = teamService.deleteTeam(teamId, userId)
                 if (success) {
                     call.respond(HttpStatusCode.OK, mapOf("message" to "팀이 삭제되었습니다"))
                 } else {
-                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "팀을 찾을 수 없습니다"))
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "팀을 찾을 수 없거나 권한이 없습니다"))
                 }
             }
             
@@ -115,28 +115,33 @@ class TeamController(private val teamService: TeamService) {
                 
                 try {
                     val request = call.receive<AddMemberRequest>()
-                    val success = teamService.addMember(teamId, request.userId)
+                    val success = teamService.addMember(teamId, request.userId, userId)
                     
                     if (success) {
                         call.respond(HttpStatusCode.OK, mapOf("message" to "멤버가 추가되었습니다"))
                     } else {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "멤버 추가에 실패했습니다"))
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "멤버 추가에 실패했습니다 (권한 없음 또는 이미 멤버)"))
                     }
                 } catch (e: Exception) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "잘못된 요청입니다"))
                 }
             }
             
-            // 팀 멤버 목록 조회
+            // 팀 멤버 목록 조회 (권한 포함)
             get("/{teamId}/members") {
+                val userId = getUserIdFromHeader(call) ?: run {
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "인증이 필요합니다"))
+                    return@get
+                }
+                
                 val teamId = call.parameters["teamId"] ?: run {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "팀 ID가 필요합니다"))
                     return@get
                 }
                 
-                val members = teamService.getTeamMembers(teamId)
+                val members = teamService.getTeamMembersWithRoles(teamId, userId)
                 if (members == null) {
-                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "팀을 찾을 수 없습니다"))
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "팀을 찾을 수 없거나 접근 권한이 없습니다"))
                 } else {
                     call.respond(HttpStatusCode.OK, members)
                 }
@@ -159,11 +164,11 @@ class TeamController(private val teamService: TeamService) {
                     return@delete
                 }
                 
-                val success = teamService.removeMember(teamId, targetUserId)
+                val success = teamService.removeMember(teamId, targetUserId, currentUserId)
                 if (success) {
                     call.respond(HttpStatusCode.OK, mapOf("message" to "멤버가 제거되었습니다"))
                 } else {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "멤버 제거에 실패했습니다"))
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "멤버 제거에 실패했습니다 (권한 없음)"))
                 }
             }
         }

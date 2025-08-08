@@ -14,6 +14,14 @@ data class TeamMember(
 )
 
 @Serializable
+data class TeamMemberWithRole(
+    val userId: Int,
+    @Contextual
+    val joinedAt: Instant,
+    val role: String // "owner", "admin", "member", "unknown"
+)
+
+@Serializable
 data class Team(
     @Contextual
     @SerialName("_id")

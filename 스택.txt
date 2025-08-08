@@ -1,0 +1,12 @@
+gateway -> envoy #완료
+auth -> go - gin #어느정도 구현
+sentinel -> rust - actix web #완료
+
+services ↓
+user -> python - fast api #어느정도 구현
+team -> kotlin - ktor #어느정도 구현
+git -> ruby - ruby on rails #미구현
+docs -> elixir - phoenix #미구현 - 기술 스택 아직 못정함
+mail -> java - spring boot #미구현
+drive -> node.js - nestjs #미구현
+code -> c# - ASP.NET Core #미구현

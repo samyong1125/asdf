@@ -5,13 +5,15 @@ use chrono::Utc;
 
 use crate::models::{
     CheckRequest, WriteRequest, WriteResponse, ReadRequest, ReadResponse,
-    RelationTuple, Operation
+    RelationTuple, Operation, BatchCheckRequest
 };
+use crate::zookie::Zookie;
 use crate::permission_checker::PermissionChecker;
 use crate::tuple_store::{TupleStore, ScyllaTupleStore};
+use crate::cache::{Cache, RedisCache};
 use crate::AppState;
 
-/// Zanzibar Check API - 권한 검증
+/// Zanzibar Check API - 권한 검증 (캐싱 포함)
 /// POST /api/v1/check
 pub async fn check_permission(
     data: web::Data<AppState>,
@@ -21,7 +23,7 @@ pub async fn check_permission(
         req.namespace, req.object_id, req.relation, req.user_id);
 
     let tuple_store = Arc::new(ScyllaTupleStore::new(data.session.clone()));
-    let checker = PermissionChecker::new(tuple_store);
+    let checker = PermissionChecker::new(tuple_store, data.cache.clone(), data.zookie_manager.clone());
 
     match checker.check_permission(&req).await {
         Ok(response) => {
@@ -38,7 +40,7 @@ pub async fn check_permission(
     }
 }
 
-/// Zanzibar Write API - 권한 튜플 생성/삭제
+/// Zanzibar Write API - 권한 튜플 생성/삭제 (캐시 무효화 포함)
 /// POST /api/v1/write
 pub async fn write_permissions(
     data: web::Data<AppState>,
@@ -47,9 +49,12 @@ pub async fn write_permissions(
     info!("Write request with {} tuple updates", req.updates.len());
 
     let tuple_store = Arc::new(ScyllaTupleStore::new(data.session.clone()));
+    let checker = PermissionChecker::new(tuple_store.clone(), data.cache.clone(), data.zookie_manager.clone());
 
     let mut success_count = 0;
     let mut errors = Vec::new();
+    let mut affected_objects = std::collections::HashSet::new();
+    let mut affected_users = std::collections::HashSet::new();
 
     for update in &req.updates {
         let tuple = RelationTuple {
@@ -75,7 +80,14 @@ pub async fn write_permissions(
         };
 
         match result {
-            Ok(_) => success_count += 1,
+            Ok(_) => {
+                success_count += 1;
+                // 캐시 무효화를 위해 영향받은 객체와 사용자 추적
+                affected_objects.insert((tuple.namespace.clone(), tuple.object_id.clone()));
+                if tuple.user_type == "user" {
+                    affected_users.insert(tuple.user_id.clone());
+                }
+            }
             Err(e) => {
                 error!("Tuple operation failed: {}", e);
                 errors.push(e.to_string());
@@ -83,8 +95,31 @@ pub async fn write_permissions(
         }
     }
 
+    // 성공한 작업이 있으면 관련 캐시 무효화
+    if success_count > 0 {
+        // 객체별 캐시 무효화
+        for (namespace, object_id) in affected_objects {
+            if let Err(e) = checker.invalidate_object_cache(&namespace, &object_id).await {
+                error!("Failed to invalidate object cache for {}:{}: {}", namespace, object_id, e);
+            }
+        }
+        
+        // 사용자별 캐시 무효화
+        for user_id in affected_users {
+            if let Err(e) = checker.invalidate_user_cache(&user_id).await {
+                error!("Failed to invalidate user cache for {}: {}", user_id, e);
+            }
+        }
+    }
+
+    // 새로운 쓰기 Zookie 생성
+    let write_zookie = data.zookie_manager.generate_zookie().await.map_err(|e| {
+        error!("Failed to generate write zookie: {}", e);
+        e
+    })?;
+    
     let response = WriteResponse {
-        zookie: format!("{}", Utc::now().timestamp_millis()),
+        zookie: write_zookie.to_string().unwrap_or_else(|_| format!("{}", Utc::now().timestamp_millis())),
     };
 
     if errors.is_empty() {
@@ -139,10 +174,13 @@ pub async fn read_permissions(
             
             let api_tuples = tuples.iter().map(|t| t.to_api_tuple()).collect::<Vec<_>>();
             
+            // 읽기 Zookie 생성
+            let read_zookie = data.zookie_manager.generate_zookie().await.unwrap_or_else(|_| Zookie::new());
+            
             let response = ReadResponse {
                 tuples: api_tuples,
                 next_page_token: None, // TODO: 페이징 구현
-                zookie: format!("{}", Utc::now().timestamp_millis()),
+                zookie: read_zookie.to_string().unwrap_or_else(|_| format!("{}", Utc::now().timestamp_millis())),
             };
             
             Ok(HttpResponse::Ok().json(response))
@@ -167,7 +205,7 @@ pub async fn get_user_permissions(
     info!("Getting permissions for user: {}", user_id);
 
     let tuple_store = Arc::new(ScyllaTupleStore::new(data.session.clone()));
-    let checker = PermissionChecker::new(tuple_store);
+    let checker = PermissionChecker::new(tuple_store, data.cache.clone(), data.zookie_manager.clone());
 
     match checker.get_user_permissions(&user_id).await {
         Ok(permissions) => {
@@ -201,7 +239,7 @@ pub async fn get_object_permissions(
     info!("Getting permissions for object: {}:{}", namespace, object_id);
 
     let tuple_store = Arc::new(ScyllaTupleStore::new(data.session.clone()));
-    let checker = PermissionChecker::new(tuple_store);
+    let checker = PermissionChecker::new(tuple_store, data.cache.clone(), data.zookie_manager.clone());
 
     match checker.get_object_permissions(&namespace, &object_id).await {
         Ok(permissions) => {
@@ -220,6 +258,36 @@ pub async fn get_object_permissions(
             error!("Failed to get object permissions: {}", e);
             Ok(HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": "Failed to get object permissions",
+                "message": e.to_string()
+            })))
+        }
+    }
+}
+
+/// Zanzibar 배치 권한 체크 API - 여러 권한을 한 번에 검증 (병렬 처리)
+/// POST /api/v1/batch_check
+pub async fn batch_check_permissions(
+    data: web::Data<AppState>,
+    req: web::Json<BatchCheckRequest>,
+) -> Result<HttpResponse> {
+    info!("Batch permission check request with {} items", req.checks.len());
+
+    let tuple_store = Arc::new(ScyllaTupleStore::new(data.session.clone()));
+    let checker = PermissionChecker::new(tuple_store, data.cache.clone(), data.zookie_manager.clone());
+
+    match checker.batch_check_permissions(&req).await {
+        Ok(response) => {
+            info!(
+                "Batch permission check result: {}/{} allowed", 
+                response.allowed_count,
+                response.total_requests
+            );
+            Ok(HttpResponse::Ok().json(response))
+        }
+        Err(e) => {
+            error!("Batch permission check failed: {}", e);
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Batch permission check failed",
                 "message": e.to_string()
             })))
         }

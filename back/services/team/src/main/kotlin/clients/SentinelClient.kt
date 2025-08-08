@@ -37,6 +37,42 @@ data class SentinelWriteResponse(
     val zookie: String
 )
 
+@Serializable
+data class SentinelCheckRequest(
+    val namespace: String,
+    val object_id: String,
+    val relation: String,
+    val user_id: String,
+    val user_type: String? = null
+)
+
+@Serializable
+data class SentinelCheckResponse(
+    val allowed: Boolean,
+    val zookie: String
+)
+
+@Serializable
+data class SentinelBatchCheckRequest(
+    val checks: List<SentinelCheckRequest>
+)
+
+@Serializable
+data class SentinelBatchCheckItem(
+    val request_index: Int,
+    val allowed: Boolean,
+    val request_info: String
+)
+
+@Serializable
+data class SentinelBatchCheckResponse(
+    val results: List<SentinelBatchCheckItem>,
+    val total_requests: Int,
+    val allowed_count: Int,
+    val denied_count: Int,
+    val zookie: String
+)
+
 class SentinelClient(private val baseUrl: String) {
     private val client = HttpClient(CIO) {
         install(ContentNegotiation) {
@@ -169,7 +205,7 @@ class SentinelClient(private val baseUrl: String) {
                 SentinelTupleUpdate(
                     operation = "Insert",
                     tuple = SentinelTuple(
-                        namespace = "team",
+                        namespace = "teams",
                         object_id = teamId,
                         relation = "member",
                         user_type = "user",
@@ -208,7 +244,7 @@ class SentinelClient(private val baseUrl: String) {
                 SentinelTupleUpdate(
                     operation = "Delete",
                     tuple = SentinelTuple(
-                        namespace = "team",
+                        namespace = "teams",
                         object_id = teamId,
                         relation = "member",
                         user_type = "user",
@@ -291,6 +327,94 @@ class SentinelClient(private val baseUrl: String) {
             println("Sentinel removeAllTeamPermissions 호출 실패: ${e.message} - teamId: $teamId, userIds: $userIds")
             false
         }
+    }
+    
+    /**
+     * 단일 권한 체크
+     */
+    suspend fun checkPermission(teamId: String, relation: String, userId: Int): Boolean {
+        return try {
+            val request = SentinelCheckRequest(
+                namespace = "teams",
+                object_id = teamId,
+                relation = relation,
+                user_id = userId.toString(),
+                user_type = "user"
+            )
+            
+            val response = client.post("$baseUrl/api/v1/check") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+            
+            if (response.status.isSuccess()) {
+                val checkResponse: SentinelCheckResponse = response.body()
+                checkResponse.allowed
+            } else {
+                println("Sentinel checkPermission 실패: ${response.status} - teamId: $teamId, relation: $relation, userId: $userId")
+                false
+            }
+        } catch (e: Exception) {
+            println("Sentinel checkPermission 호출 실패: ${e.message} - teamId: $teamId, relation: $relation, userId: $userId")
+            false
+        }
+    }
+    
+    /**
+     * 배치 권한 체크 - 여러 권한을 한번에 검증
+     */
+    suspend fun batchCheckPermissions(checks: List<SentinelCheckRequest>): List<Boolean> {
+        if (checks.isEmpty()) return emptyList()
+        
+        return try {
+            val request = SentinelBatchCheckRequest(checks = checks)
+            
+            val response = client.post("$baseUrl/api/v1/batch_check") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+            
+            if (response.status.isSuccess()) {
+                val batchResponse: SentinelBatchCheckResponse = response.body()
+                // 결과를 원래 순서대로 정렬하여 반환
+                batchResponse.results
+                    .sortedBy { it.request_index }
+                    .map { it.allowed }
+            } else {
+                println("Sentinel batchCheckPermissions 실패: ${response.status} - ${checks.size}개 요청")
+                List(checks.size) { false } // 모든 권한을 거부로 처리
+            }
+        } catch (e: Exception) {
+            println("Sentinel batchCheckPermissions 호출 실패: ${e.message} - ${checks.size}개 요청")
+            List(checks.size) { false } // 모든 권한을 거부로 처리
+        }
+    }
+    
+    /**
+     * 팀 관리 권한 체크 (owner 또는 admin)
+     */
+    suspend fun checkTeamManagePermission(teamId: String, userId: Int): Boolean {
+        val checks = listOf(
+            SentinelCheckRequest("teams", teamId, "owner", userId.toString(), "user"),
+            SentinelCheckRequest("teams", teamId, "admin", userId.toString(), "user")
+        )
+        
+        val results = batchCheckPermissions(checks)
+        return results.any { it } // owner 또는 admin 중 하나라도 있으면 true
+    }
+    
+    /**
+     * 팀 멤버십 체크 (member, admin, owner 중 하나)
+     */
+    suspend fun checkTeamMembership(teamId: String, userId: Int): Boolean {
+        val checks = listOf(
+            SentinelCheckRequest("teams", teamId, "member", userId.toString(), "user"),
+            SentinelCheckRequest("teams", teamId, "admin", userId.toString(), "user"),
+            SentinelCheckRequest("teams", teamId, "owner", userId.toString(), "user")
+        )
+        
+        val results = batchCheckPermissions(checks)
+        return results.any { it } // member, admin, owner 중 하나라도 있으면 true
     }
     
     /**

@@ -1,5 +1,6 @@
 use std::fmt;
 use std::error::Error as StdError;
+use actix_web::{HttpResponse, ResponseError};
 
 /// Sentinel 시스템의 주요 에러 타입들
 #[derive(Debug)]
@@ -124,3 +125,46 @@ impl SentinelError {
 
 /// Sentinel 결과 타입 별칭
 pub type SentinelResult<T> = Result<T, SentinelError>;
+
+impl ResponseError for SentinelError {
+    fn error_response(&self) -> HttpResponse {
+        match self {
+            SentinelError::ValidationError { message } => {
+                HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": "Validation error",
+                    "message": message
+                }))
+            }
+            SentinelError::PermissionError { message } => {
+                HttpResponse::Forbidden().json(serde_json::json!({
+                    "error": "Permission error",
+                    "message": message
+                }))
+            }
+            SentinelError::DatabaseError { message, .. } => {
+                HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": "Database error",
+                    "message": message
+                }))
+            }
+            SentinelError::CacheError { message, .. } => {
+                HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": "Cache error", 
+                    "message": message
+                }))
+            }
+            SentinelError::SerializationError { message, .. } => {
+                HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": "Serialization error",
+                    "message": message
+                }))
+            }
+            SentinelError::InternalError { message } => {
+                HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": "Internal error",
+                    "message": message
+                }))
+            }
+        }
+    }
+}

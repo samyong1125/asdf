@@ -252,3 +252,55 @@ impl ChangelogEntry {
         }
     }
 }
+
+/// 배치 권한 체크 요청
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchCheckRequest {
+    /// 체크할 권한들의 목록
+    pub checks: Vec<CheckRequest>,
+    /// 일관성 토큰 (선택적)
+    pub zookie: Option<String>,
+}
+
+/// 개별 권한 체크 결과
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchCheckItem {
+    /// 원본 요청 인덱스
+    pub request_index: usize,
+    /// 권한 허용 여부
+    pub allowed: bool,
+    /// 요청 정보 (디버깅용)
+    pub request_info: String,
+}
+
+/// 배치 권한 체크 응답
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchCheckResponse {
+    /// 각 권한 체크 결과
+    pub results: Vec<BatchCheckItem>,
+    /// 전체 처리된 요청 수
+    pub total_requests: usize,
+    /// 허용된 요청 수
+    pub allowed_count: usize,
+    /// 거부된 요청 수
+    pub denied_count: usize,
+    /// 응답 시간의 일관성 토큰
+    pub zookie: String,
+}
+
+impl BatchCheckResponse {
+    /// 새로운 배치 응답 생성
+    pub fn new(results: Vec<BatchCheckItem>) -> Self {
+        let total_requests = results.len();
+        let allowed_count = results.iter().filter(|r| r.allowed).count();
+        let denied_count = total_requests - allowed_count;
+        
+        Self {
+            results,
+            total_requests,
+            allowed_count,
+            denied_count,
+            zookie: format!("{}", chrono::Utc::now().timestamp_millis()),
+        }
+    }
+}

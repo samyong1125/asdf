@@ -6,6 +6,8 @@ use redis::Client as RedisClient;
 use std::env;
 use std::sync::Arc;
 use tracing::{info, error};
+use cache::Cache;
+use zookie::ZookieManager;
 
 mod database;
 mod errors;
@@ -14,12 +16,16 @@ mod tuple_store;
 mod permission_hierarchy;
 mod permission_checker;
 mod api_handlers;
+mod cache;
+mod zookie;
 
 // App State to hold database connections
 #[derive(Clone)]
 pub struct AppState {
     pub session: Arc<Session>,
     pub redis: Arc<RedisClient>,
+    pub cache: Arc<cache::RedisCache>,
+    pub zookie_manager: Arc<ZookieManager<cache::RedisCache>>,
 }
 
 // Health check endpoint
@@ -65,25 +71,47 @@ async fn redis_test(data: web::Data<AppState>) -> Result<HttpResponse> {
     }
 }
 
+// Cache test endpoint
+async fn cache_test(data: web::Data<AppState>) -> Result<HttpResponse> {
+    match data.cache.ping().await {
+        Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
+            "status": "ok",
+            "message": "Cache connection successful"
+        }))),
+        Err(e) => {
+            error!("Cache connection failed: {}", e);
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "status": "error", 
+                "message": format!("Cache connection failed: {}", e)
+            })))
+        }
+    }
+}
+
 // All databases connection test endpoint
 async fn db_test(data: web::Data<AppState>) -> Result<HttpResponse> {
     let scylla_result = database::test_scylla_connection(&data.session).await;
     let redis_result = database::test_redis_connection(&data.redis).await;
+    let cache_result = data.cache.ping().await;
     
-    match (scylla_result, redis_result) {
-        (Ok(_), Ok(_)) => Ok(HttpResponse::Ok().json(serde_json::json!({
+    match (scylla_result, redis_result, cache_result) {
+        (Ok(_), Ok(_), Ok(_)) => Ok(HttpResponse::Ok().json(serde_json::json!({
             "status": "ok",
             "message": "All database connections successful",
             "scylla": "ok",
-            "redis": "ok"
+            "redis": "ok",
+            "cache": "ok"
         }))),
-        (scylla_err, redis_err) => {
+        (scylla_err, redis_err, cache_err) => {
             let mut errors = Vec::new();
             if let Err(e) = scylla_err {
                 errors.push(format!("ScyllaDB: {}", e));
             }
             if let Err(e) = redis_err {
                 errors.push(format!("Redis: {}", e));
+            }
+            if let Err(e) = cache_err {
+                errors.push(format!("Cache: {}", e));
             }
             
             error!("Database connection errors: {:?}", errors);
@@ -142,9 +170,18 @@ async fn main() -> std::io::Result<()> {
 
     info!("Database schema initialized successfully");
 
+    // Initialize cache
+    let cache = Arc::new(cache::RedisCache::new(redis.clone()));
+    
+    // Initialize Zookie manager
+    let node_id = env::var("NODE_ID").ok();
+    let zookie_manager = Arc::new(ZookieManager::new(cache.clone(), node_id));
+    
     let app_state = AppState {
         session: session.clone(),
         redis: redis.clone(),
+        cache: cache.clone(),
+        zookie_manager,
     };
 
     info!("Starting Sentinel server on port {}", port);
@@ -163,12 +200,14 @@ async fn main() -> std::io::Result<()> {
             .route("/db-test", web::get().to(db_test))
             .route("/scylla-test", web::get().to(scylla_test))
             .route("/redis-test", web::get().to(redis_test))
+            .route("/cache-test", web::get().to(cache_test))
             .service(
                 web::scope("/api/v1")
                     // Zanzibar Core API
                     .route("/check", web::post().to(api_handlers::check_permission))
                     .route("/write", web::post().to(api_handlers::write_permissions))
                     .route("/read", web::post().to(api_handlers::read_permissions))
+                    .route("/batch_check", web::post().to(api_handlers::batch_check_permissions))
                     
                     // Debug/Utility APIs
                     .route("/users/{user_id}/permissions", web::get().to(api_handlers::get_user_permissions))
