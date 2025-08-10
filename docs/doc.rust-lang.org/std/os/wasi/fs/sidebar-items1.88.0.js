@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["link","rename","symlink","symlink_path"],"trait":["DirEntryExt","FileExt","FileTypeExt","MetadataExt","OpenOptionsExt"]};
